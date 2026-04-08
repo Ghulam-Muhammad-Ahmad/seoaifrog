@@ -1,0 +1,46 @@
+{
+  "name": "@seoaifrog/api",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -n api,crawl,audit -c blue,green,magenta \"tsx watch src/server.ts\" \"tsx watch src/jobs/crawlWorker.ts\" \"tsx watch src/jobs/auditWorker.ts\"",
+    "build": "tsc && node scripts/copy-skills.mjs",
+    "start": "node dist/server.js",
+    "db:migrate": "prisma db push",
+    "db:push": "prisma db push",
+    "db:studio": "prisma studio",
+    "db:generate": "prisma generate",
+    "worker:crawl": "tsx src/jobs/crawlWorker.ts",
+    "worker:audit": "tsx src/jobs/auditWorker.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^9.4.0",
+    "@fastify/cors": "^9.0.1",
+    "@fastify/websocket": "^10.0.1",
+    "@prisma/client": "^6.1.0",
+    "@seoaifrog/shared": "*",
+    "bcryptjs": "^2.4.3",
+    "bottleneck": "^2.19.2",
+    "bullmq": "^5.34.3",
+    "cheerio": "^1.0.0",
+    "dotenv": "^16.4.7",
+    "fastify": "^4.28.1",
+    "fastify-plugin": "^4.5.1",
+    "got": "^14.4.5",
+    "ioredis": "^5.4.2",
+    "openai": "^4.77.0",
+    "playwright": "^1.49.1",
+    "prisma": "^6.1.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^22.10.2",
+    "@types/ws": "^8.5.13",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

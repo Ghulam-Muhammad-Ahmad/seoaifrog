@@ -1,0 +1,38 @@
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  mongodb:
+    image: mongo:7
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data
+    environment:
+      MONGO_INITDB_DATABASE: seoaifrog
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand({ ping: 1 })"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+  # One-shot: Prisma on MongoDB uses transactions → requires a replica set.
+  mongo-init:
+    image: mongo:7
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    volumes:
+      - ./docker/mongo-rs-init.js:/mongo-rs-init.js:ro
+    entrypoint: ["mongosh", "mongodb://mongodb:27017", "--file", "/mongo-rs-init.js"]
+    restart: on-failure:5
+
+volumes:
+  redis_data:
+  mongo_data:

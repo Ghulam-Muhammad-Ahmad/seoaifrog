@@ -1,0 +1,338 @@
+// apps/api/prisma/schema.prisma — MongoDB (Prisma ORM)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+// ═══════════════════════ AUTH ════════════════════════
+
+model User {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  email        String   @unique
+  name         String?
+  avatar       String?
+  passwordHash String?
+  /// AES-256-GCM payload (JSON: iv, ciphertext, tag); not plaintext.
+  openaiApiKeyEnc String?
+  plan         Plan     @default(FREE)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sessions  Session[]
+  projects  Project[]
+  apiKeys   ApiKey[]
+  usage     UsageRecord[]
+  googlePsiConnection GooglePsiConnection?
+  speedTests SpeedTest[]
+}
+
+enum Plan {
+  FREE
+  PRO
+  AGENCY
+}
+
+model Session {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ApiKey {
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String    @db.ObjectId
+  name      String
+  keyHash   String    @unique
+  lastUsed  DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ═══════════════════════ PROJECTS ════════════════════
+
+model Project {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String   @db.ObjectId
+  name        String
+  domain      String
+  rootUrl     String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  crawlSessions CrawlSession[]
+  audits        Audit[]
+  reports       Report[]
+  speedTests    SpeedTest[]
+}
+
+model GooglePsiConnection {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String   @unique @db.ObjectId
+  accessTokenEnc  String
+  refreshTokenEnc String?
+  tokenExpiresAt  DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ═══════════════════════ CRAWLER ═════════════════════
+
+model CrawlSession {
+  id           String      @id @default(auto()) @map("_id") @db.ObjectId
+  projectId    String      @db.ObjectId
+  status       CrawlStatus @default(PENDING)
+  config       String
+  stats        String?
+  startedAt    DateTime?
+  completedAt  DateTime?
+  errorMessage String?
+  createdAt    DateTime    @default(now())
+
+  /// Pages count when crawl text chunks were last embedded (invalidates if crawl grows)
+  embeddingPageCount Int?
+  embeddingModel     String?
+
+  project         Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  pages           CrawledPage[]
+  audits          Audit[]
+  crawlTextChunks CrawlTextChunk[]
+}
+
+/// Text slice + vector for semantic retrieval during audits (OpenAI embeddings).
+model CrawlTextChunk {
+  id             String @id @default(auto()) @map("_id") @db.ObjectId
+  crawlSessionId String @db.ObjectId
+  pageId         String @db.ObjectId
+  url            String
+  chunkIndex     Int
+  text           String
+  embedding      Json
+
+  crawlSession CrawlSession @relation(fields: [crawlSessionId], references: [id], onDelete: Cascade)
+
+  @@unique([crawlSessionId, pageId, chunkIndex])
+  @@index([crawlSessionId])
+}
+
+enum CrawlStatus {
+  PENDING
+  RUNNING
+  PAUSED
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+model CrawledPage {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  crawlSessionId   String   @db.ObjectId
+  url              String
+  statusCode       Int?
+  redirectUrl      String?
+  contentType      String?
+  indexable        Boolean?
+  crawlDepth       Int      @default(0)
+  responseTimeMs   Int?
+  htmlSize         Int?
+
+  title            String?
+  titleLength      Int?
+  metaDescription  String?
+  metaDescLength   Int?
+  metaRobots       String?
+  canonical        String?
+  ogTitle          String?
+  ogDescription    String?
+  ogImage          String?
+
+  h1Count          Int?
+  h1Text           String?
+  headingsJson     String?
+
+  internalLinks    Int?
+  externalLinks    Int?
+  linksJson        String?
+
+  imageCount       Int?
+  imagesMissingAlt Int?
+  imagesJson       String?
+
+  hasSchema        Boolean?
+  schemaTypes      String?
+  schemaJson       String?
+
+  wordCount        Int?
+  readabilityScore Float?
+  contentHash      String?
+  textContent      String?
+
+  hreflangJson     String?
+
+  lcp              Float?
+  cls              Float?
+  ttfb             Float?
+
+  crawledAt        DateTime @default(now())
+
+  crawlSession CrawlSession @relation(fields: [crawlSessionId], references: [id], onDelete: Cascade)
+  issues       PageIssue[]
+
+  @@index([crawlSessionId])
+  @@index([url])
+  @@index([statusCode])
+  @@index([contentHash])
+}
+
+model PageIssue {
+  id       String        @id @default(auto()) @map("_id") @db.ObjectId
+  pageId   String        @db.ObjectId
+  category IssueCategory
+  severity IssueSeverity
+  code     String
+  message  String
+  detail   String?
+
+  page CrawledPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@index([pageId])
+  @@index([category])
+  @@index([severity])
+}
+
+enum IssueCategory {
+  TECHNICAL
+  CONTENT
+  LINKS
+  IMAGES
+  SCHEMA
+  PERFORMANCE
+  MOBILE
+  SECURITY
+  INTERNATIONAL
+}
+
+enum IssueSeverity {
+  CRITICAL
+  WARNING
+  INFO
+}
+
+// ═══════════════════════ AUDITS ══════════════════════
+
+model Audit {
+  id             String      @id @default(auto()) @map("_id") @db.ObjectId
+  projectId      String      @db.ObjectId
+  crawlSessionId String?     @db.ObjectId
+  status         AuditStatus @default(PENDING)
+  skillsSelected String
+  overallScore   Int?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  errorMessage   String?
+  createdAt      DateTime    @default(now())
+
+  project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  crawlSession CrawlSession? @relation(fields: [crawlSessionId], references: [id])
+  skillResults SkillResult[]
+  reports      Report[]
+}
+
+enum AuditStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+model SkillResult {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  auditId     String    @db.ObjectId
+  skillName   String
+  status      String
+  score       Int?
+  rawResponse String?
+  parsedData  String?
+  tokensUsed  Int?
+  durationMs  Int?
+  completedAt DateTime?
+
+  audit Audit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  @@index([auditId])
+}
+
+// ═══════════════════════ REPORTS ═════════════════════
+
+model Report {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  projectId    String    @db.ObjectId
+  auditId      String?   @db.ObjectId
+  title        String
+  format       String
+  filePath     String?
+  fileSize     Int?
+  overallScore Int?
+  summary      String?
+  shareToken   String?   @unique
+  expiresAt    DateTime?
+  createdAt    DateTime  @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  audit   Audit?  @relation(fields: [auditId], references: [id])
+}
+
+model SpeedTest {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  projectId        String   @db.ObjectId
+  createdByUserId  String   @db.ObjectId
+  url              String
+  strategy         String
+  fetchedAt        DateTime
+  performanceScore Int?
+  accessibilityScore Int?
+  bestPracticesScore Int?
+  seoScore         Int?
+  pwaScore         Int?
+  firstContentfulPaintMs Float?
+  largestContentfulPaintMs Float?
+  cumulativeLayoutShift Float?
+  interactionToNextPaintMs Float?
+  totalBlockingTimeMs Float?
+  speedIndexMs     Float?
+  rawJson          Json?
+  createdAt        DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [createdByUserId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+  @@index([createdByUserId, createdAt])
+  @@index([url])
+}
+
+// ═══════════════════════ USAGE ═══════════════════════
+
+model UsageRecord {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  action    String
+  quantity  Int      @default(1)
+  metadata  String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
