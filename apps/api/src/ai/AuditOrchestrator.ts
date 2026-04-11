@@ -115,7 +115,8 @@ export async function runAuditOrchestrator(prisma: PrismaClient, auditId: string
         try {
           if (await isCancelled()) return
           const payload = await buildPayloadForSkill(prisma, skillName, ctx)
-          const out = await client.completeWithSkill(skillName, payload)
+          const websiteUrl = selection.targetUrl ?? audit.project.rootUrl
+          const out = await client.completeWithSkill(skillName, payload, websiteUrl)
           if (out.score != null) scores.set(skillName, out.score)
 
           await prisma.skillResult.update({

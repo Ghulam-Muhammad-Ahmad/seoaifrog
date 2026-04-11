@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "turbo run dev",
     "dev:api": "npm run dev -w @seoaifrog/api",
+    "dev:setup": "npm run db:push -w @seoaifrog/api && npm run build -w @seoaifrog/shared && concurrently -n api,crawl,audit,web,shared -c blue,green,magenta,cyan,yellow \"npx tsx apps/api/src/server.ts\" \"npx tsx apps/api/src/jobs/crawlWorker.ts\" \"npx tsx apps/api/src/jobs/auditWorker.ts\" \"npm run dev -w @seoaifrog/web\" \"npm run dev -w @seoaifrog/shared\"",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",

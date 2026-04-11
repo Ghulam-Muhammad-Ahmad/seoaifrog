@@ -70,27 +70,43 @@ const speedTestsRoutes: FastifyPluginAsync = async (fastify) => {
     })
     if (!project) return reply.status(404).send({ error: 'Project not found' })
 
+    const userKeys = await fastify.prisma.user.findUnique({
+      where: { id: request.user!.id },
+      select: { pagespeedApiKeyEnc: true },
+    })
     const tokenRow = await fastify.prisma.googlePsiConnection.findUnique({
       where: { userId: request.user!.id },
       select: { accessTokenEnc: true, tokenExpiresAt: true },
     })
-    if (!tokenRow) {
-      return reply.status(400).send({ error: 'Google OAuth is not connected in account settings' })
-    }
-    if (tokenRow.tokenExpiresAt && tokenRow.tokenExpiresAt.getTime() <= Date.now()) {
-      return reply.status(401).send({ error: 'Saved Google OAuth token is expired. Reconnect in account settings.' })
-    }
-
     const master = getMasterKey()
     if (!master) {
       return reply.status(503).send({ error: 'Server encryption is not configured' })
     }
-    let accessToken = ''
-    try {
-      accessToken = decryptUserSecret(tokenRow.accessTokenEnc, master)
-    } catch (e: unknown) {
-      fastify.log.error({ err: e }, 'decrypt google oauth token for speed test')
-      return reply.status(500).send({ error: 'Could not read saved Google OAuth token' })
+    let accessToken: string | undefined
+    let apiKey: string | undefined
+    if (userKeys?.pagespeedApiKeyEnc) {
+      try {
+        apiKey = decryptUserSecret(userKeys.pagespeedApiKeyEnc, master)
+      } catch (e: unknown) {
+        fastify.log.error({ err: e }, 'decrypt pagespeed key for speed test')
+        return reply.status(500).send({ error: 'Could not read saved PageSpeed API key' })
+      }
+    }
+    if (!apiKey && tokenRow?.accessTokenEnc) {
+      if (tokenRow.tokenExpiresAt && tokenRow.tokenExpiresAt.getTime() <= Date.now()) {
+        return reply.status(401).send({ error: 'Saved Google OAuth token is expired. Reconnect in account settings.' })
+      }
+      try {
+        accessToken = decryptUserSecret(tokenRow.accessTokenEnc, master)
+      } catch (e: unknown) {
+        fastify.log.error({ err: e }, 'decrypt google oauth token for speed test')
+        return reply.status(500).send({ error: 'Could not read saved Google OAuth token' })
+      }
+    }
+    if (!apiKey && !accessToken) {
+      return reply
+        .status(400)
+        .send({ error: 'No PageSpeed credentials found. Add a PageSpeed API key or Google OAuth token in account settings.' })
     }
 
     const targetUrl = parsed.data.url.trim()
@@ -105,6 +121,7 @@ const speedTestsRoutes: FastifyPluginAsync = async (fastify) => {
         url: targetUrl,
         strategy: parsed.data.strategy,
         accessToken,
+        apiKey,
       })
 
       const created = await fastify.prisma.speedTest.create({

@@ -19,6 +19,8 @@ model User {
   passwordHash String?
   /// AES-256-GCM payload (JSON: iv, ciphertext, tag); not plaintext.
   openaiApiKeyEnc String?
+  /// Per-user Google PageSpeed API key (encrypted).
+  pagespeedApiKeyEnc String?
   plan         Plan     @default(FREE)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt

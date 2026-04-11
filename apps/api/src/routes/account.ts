@@ -19,6 +19,9 @@ const changePasswordBody = z.object({
 const openaiKeyBody = z.object({
   apiKey: z.string().min(1).max(4096),
 })
+const pagespeedKeyBody = z.object({
+  apiKey: z.string().min(1).max(4096),
+})
 
 const openaiKeyTestBody = z.object({
   apiKey: z.string().min(1).max(4096).optional(),
@@ -39,6 +42,7 @@ function settingsUserDto(u: {
   createdAt: Date
   updatedAt: Date
   openAiKeyConfigured: boolean
+  pageSpeedKeyConfigured: boolean
   googlePsiConfigured: boolean
   googlePsiTokenExpiresAt: Date | null
 }) {
@@ -51,6 +55,7 @@ function settingsUserDto(u: {
     createdAt: u.createdAt.toISOString(),
     updatedAt: u.updatedAt.toISOString(),
     openAiKeyConfigured: u.openAiKeyConfigured,
+    pageSpeedKeyConfigured: u.pageSpeedKeyConfigured,
     googlePsiConfigured: u.googlePsiConfigured,
     googlePsiTokenExpiresAt: u.googlePsiTokenExpiresAt?.toISOString() ?? null,
   }
@@ -95,6 +100,7 @@ const accountRoutes: FastifyPluginAsync = async (fastify) => {
         createdAt: true,
         updatedAt: true,
         openaiApiKeyEnc: true,
+        pagespeedApiKeyEnc: true,
         googlePsiConnection: {
           select: {
             id: true,
@@ -104,11 +110,12 @@ const accountRoutes: FastifyPluginAsync = async (fastify) => {
       },
     })
     if (!u) return { user: null }
-    const { openaiApiKeyEnc, googlePsiConnection, ...rest } = u
+    const { openaiApiKeyEnc, pagespeedApiKeyEnc, googlePsiConnection, ...rest } = u
     return {
       user: settingsUserDto({
         ...rest,
         openAiKeyConfigured: Boolean(openaiApiKeyEnc),
+        pageSpeedKeyConfigured: Boolean(pagespeedApiKeyEnc),
         googlePsiConfigured: Boolean(googlePsiConnection),
         googlePsiTokenExpiresAt: googlePsiConnection?.tokenExpiresAt ?? null,
       }),
@@ -145,6 +152,7 @@ const accountRoutes: FastifyPluginAsync = async (fastify) => {
         createdAt: true,
         updatedAt: true,
         openaiApiKeyEnc: true,
+        pagespeedApiKeyEnc: true,
         googlePsiConnection: {
           select: {
             id: true,
@@ -153,11 +161,12 @@ const accountRoutes: FastifyPluginAsync = async (fastify) => {
         },
       },
     })
-    const { openaiApiKeyEnc, googlePsiConnection, ...rest } = updated
+    const { openaiApiKeyEnc, pagespeedApiKeyEnc, googlePsiConnection, ...rest } = updated
     return {
       user: settingsUserDto({
         ...rest,
         openAiKeyConfigured: Boolean(openaiApiKeyEnc),
+        pageSpeedKeyConfigured: Boolean(pagespeedApiKeyEnc),
         googlePsiConfigured: Boolean(googlePsiConnection),
         googlePsiTokenExpiresAt: googlePsiConnection?.tokenExpiresAt ?? null,
       }),
@@ -214,6 +223,7 @@ const accountRoutes: FastifyPluginAsync = async (fastify) => {
         createdAt: true,
         updatedAt: true,
         openaiApiKeyEnc: true,
+        pagespeedApiKeyEnc: true,
         googlePsiConnection: {
           select: {
             id: true,
@@ -222,11 +232,12 @@ const accountRoutes: FastifyPluginAsync = async (fastify) => {
         },
       },
     })
-    const { openaiApiKeyEnc, googlePsiConnection, ...rest } = updated
+    const { openaiApiKeyEnc, pagespeedApiKeyEnc, googlePsiConnection, ...rest } = updated
     return {
       user: settingsUserDto({
         ...rest,
         openAiKeyConfigured: Boolean(openaiApiKeyEnc),
+        pageSpeedKeyConfigured: Boolean(pagespeedApiKeyEnc),
         googlePsiConfigured: Boolean(googlePsiConnection),
         googlePsiTokenExpiresAt: googlePsiConnection?.tokenExpiresAt ?? null,
       }),
@@ -246,6 +257,7 @@ const accountRoutes: FastifyPluginAsync = async (fastify) => {
         createdAt: true,
         updatedAt: true,
         openaiApiKeyEnc: true,
+        pagespeedApiKeyEnc: true,
         googlePsiConnection: {
           select: {
             id: true,
@@ -254,11 +266,12 @@ const accountRoutes: FastifyPluginAsync = async (fastify) => {
         },
       },
     })
-    const { openaiApiKeyEnc, googlePsiConnection, ...rest } = updated
+    const { openaiApiKeyEnc, pagespeedApiKeyEnc, googlePsiConnection, ...rest } = updated
     return {
       user: settingsUserDto({
         ...rest,
         openAiKeyConfigured: Boolean(openaiApiKeyEnc),
+        pageSpeedKeyConfigured: Boolean(pagespeedApiKeyEnc),
         googlePsiConfigured: Boolean(googlePsiConnection),
         googlePsiTokenExpiresAt: googlePsiConnection?.tokenExpiresAt ?? null,
       }),
@@ -291,6 +304,72 @@ const accountRoutes: FastifyPluginAsync = async (fastify) => {
 
     const result = await testOpenAiKey(apiKey)
     return { valid: result.valid, message: result.message }
+  })
+
+  fastify.post('/account/pagespeed-key', async (request, reply) => {
+    const parsed = pagespeedKeyBody.safeParse(request.body)
+    if (!parsed.success) return reply.status(400).send({ error: 'Invalid body' })
+    const key = encryptionKeyOr503(reply)
+    if (!key) return
+
+    let enc: string
+    try {
+      enc = encryptUserSecret(parsed.data.apiKey, key)
+    } catch (e: unknown) {
+      fastify.log.error({ err: e }, 'encrypt pagespeed key')
+      return reply.status(500).send({ error: 'Could not store PageSpeed API key' })
+    }
+    await fastify.prisma.user.update({
+      where: { id: request.user!.id },
+      data: { pagespeedApiKeyEnc: enc },
+    })
+    return { ok: true }
+  })
+
+  fastify.delete('/account/pagespeed-key', async (request) => {
+    await fastify.prisma.user.update({
+      where: { id: request.user!.id },
+      data: { pagespeedApiKeyEnc: null },
+    })
+    return { ok: true }
+  })
+
+  fastify.post('/account/pagespeed-key/test', async (request, reply) => {
+    const parsed = pagespeedKeyBody.partial().safeParse(request.body ?? {})
+    if (!parsed.success) return reply.status(400).send({ error: 'Invalid body' })
+    const key = encryptionKeyOr503(reply)
+    if (!key) return
+
+    let apiKey = parsed.data.apiKey
+    if (!apiKey) {
+      const row = await fastify.prisma.user.findUnique({
+        where: { id: request.user!.id },
+        select: { pagespeedApiKeyEnc: true },
+      })
+      if (!row?.pagespeedApiKeyEnc) {
+        return reply.status(400).send({ error: 'No PageSpeed API key provided and none saved for this account' })
+      }
+      try {
+        apiKey = decryptUserSecret(row.pagespeedApiKeyEnc, key)
+      } catch (e: unknown) {
+        fastify.log.error({ err: e }, 'decrypt pagespeed key')
+        return reply.status(500).send({ error: 'Could not read saved PageSpeed API key' })
+      }
+    }
+
+    try {
+      await runPageSpeed({
+        url: 'https://example.com/',
+        strategy: 'mobile',
+        apiKey,
+      })
+      return { valid: true, message: 'PageSpeed API key is valid' }
+    } catch (e: unknown) {
+      const err = e as { message?: string; statusCode?: number }
+      return reply
+        .status(err.statusCode && err.statusCode >= 400 ? err.statusCode : 400)
+        .send({ valid: false, error: err.message ?? 'PageSpeed API key validation failed' })
+    }
   })
 
   fastify.post('/account/google-psi-oauth', async (request, reply) => {

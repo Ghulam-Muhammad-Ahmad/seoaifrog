@@ -89,6 +89,9 @@ export interface CrawledPageDetailDTO {
   titleLength: number | null
   metaDescription: string | null
   metaDescLength: number | null
+  ogTitle: string | null
+  ogDescription: string | null
+  ogImage: string | null
   h1Count: number | null
   h2Count: number | null
   h1Text: string | null

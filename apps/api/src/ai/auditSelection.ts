@@ -3,6 +3,8 @@ export type AuditSelection = {
   targetUrl: string | null
 }
 
+export const COMPREHENSIVE_AUDIT_SKILL = 'seo-audit'
+
 type StoredSelection =
   | string[]
   | {
@@ -15,7 +17,9 @@ export function decodeAuditSelection(raw: string): AuditSelection {
     const parsed = JSON.parse(raw) as StoredSelection
     if (Array.isArray(parsed)) {
       return {
-        skills: parsed.filter((x): x is string => typeof x === 'string' && x.trim().length > 0),
+        skills: normalizeAuditSkills(
+          parsed.filter((x): x is string => typeof x === 'string' && x.trim().length > 0),
+        ),
         targetUrl: null,
       }
     }
@@ -27,7 +31,7 @@ export function decodeAuditSelection(raw: string): AuditSelection {
         typeof parsed.targetUrl === 'string' && parsed.targetUrl.trim().length > 0
           ? parsed.targetUrl.trim()
           : null
-      return { skills, targetUrl }
+      return { skills: normalizeAuditSkills(skills), targetUrl }
     }
   } catch {
     // Fall through to defaults.
@@ -37,9 +41,15 @@ export function decodeAuditSelection(raw: string): AuditSelection {
 
 export function encodeAuditSelection(selection: AuditSelection): string {
   return JSON.stringify({
-    skills: selection.skills,
+    skills: normalizeAuditSkills(selection.skills),
     targetUrl: selection.targetUrl,
   })
+}
+
+export function normalizeAuditSkills(skills: string[]): string[] {
+  const clean = [...new Set(skills.map((s) => s.trim()).filter((s) => s.length > 0))]
+  if (clean.includes(COMPREHENSIVE_AUDIT_SKILL)) return [COMPREHENSIVE_AUDIT_SKILL]
+  return clean
 }
 
 function normalizeHost(hostname: string): string {

@@ -6,6 +6,7 @@ import {
   decodeAuditSelection,
   encodeAuditSelection,
   isUrlWithinProjectRoot,
+  normalizeAuditSkills,
 } from '../ai/auditSelection.js'
 
 async function assertProject(fastify: { prisma: import('@prisma/client').PrismaClient }, userId: string, projectId: string) {
@@ -75,7 +76,8 @@ const auditsRoutes: FastifyPluginAsync = async (fastify) => {
       .safeParse(request.body)
     if (!parsed.success) return reply.status(400).send({ error: 'Invalid body' })
 
-    const { crawlSessionId, targetUrl, skills } = parsed.data
+    const { crawlSessionId, targetUrl } = parsed.data
+    const skills = normalizeAuditSkills(parsed.data.skills)
     const crawlId = crawlSessionId ?? null
     const selectedTargetUrl = targetUrl?.trim() ? targetUrl.trim() : null
 

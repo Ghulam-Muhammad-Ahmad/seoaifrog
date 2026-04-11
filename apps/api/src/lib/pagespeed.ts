@@ -5,7 +5,8 @@ export type PageSpeedStrategy = 'mobile' | 'desktop'
 export type PageSpeedRunInput = {
   url: string
   strategy: PageSpeedStrategy
-  accessToken: string
+  accessToken?: string
+  apiKey?: string
 }
 
 export type PageSpeedMetrics = {
@@ -75,13 +76,14 @@ export async function runPageSpeed(input: PageSpeedRunInput): Promise<PageSpeedM
   params.append('category', 'best-practices')
   params.append('category', 'seo')
   params.append('category', 'pwa')
+  if (input.apiKey) params.set('key', input.apiKey)
 
+  const headers: Record<string, string> = {}
+  if (input.accessToken) headers.Authorization = `Bearer ${input.accessToken}`
   const response = await got
     .get('https://www.googleapis.com/pagespeedonline/v5/runPagespeed', {
       searchParams: params,
-      headers: {
-        Authorization: `Bearer ${input.accessToken}`,
-      },
+      headers,
       responseType: 'json',
       timeout: { request: 30_000 },
       throwHttpErrors: true,

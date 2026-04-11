@@ -288,6 +288,9 @@ export async function runCrawlEngine(opts: CrawlEngineOptions): Promise<void> {
     const htmlSize = Buffer.byteLength(body, 'utf8')
     let title: string | null = null
     let metaDescription: string | null = null
+    let ogTitle: string | null = null
+    let ogDescription: string | null = null
+    let ogImage: string | null = null
     let wordCount: number | null = null
     let h1Count = 0
     let h1Text: string | null = null
@@ -305,6 +308,13 @@ export async function runCrawlEngine(opts: CrawlEngineOptions): Promise<void> {
       const $ = cheerio.load(body)
       title = $('title').first().text().trim() || null
       metaDescription = $('meta[name="description"]').attr('content')?.trim() ?? null
+      ogTitle = $('meta[property="og:title"]').attr('content')?.trim() ?? null
+      ogDescription = $('meta[property="og:description"]').attr('content')?.trim() ?? null
+      ogImage = $('meta[property="og:image"]').attr('content')?.trim() ?? null
+      if (ogImage) {
+        const resolvedOgImage = normalizeUrl(ogImage, finalUrl)
+        ogImage = resolvedOgImage ?? ogImage
+      }
       const h1s = $('h1')
       h1Count = h1s.length
       h1Text = h1s.first().text().trim().slice(0, 500) || null
@@ -364,6 +374,9 @@ export async function runCrawlEngine(opts: CrawlEngineOptions): Promise<void> {
           titleLength: title?.length ?? null,
           metaDescription,
           metaDescLength: metaDescription?.length ?? null,
+          ogTitle,
+          ogDescription,
+          ogImage,
           h1Count,
           h1Text,
           headingsJson: JSON.stringify(headingsForJson.slice(0, 400)),

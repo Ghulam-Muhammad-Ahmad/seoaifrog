@@ -67,3 +67,9 @@ Generate one with:
 if (!process.env.REDIS_URL?.trim()) {
   process.env.REDIS_URL = 'redis://127.0.0.1:6379'
 }
+
+// Ensure local Prisma engine is used in dev/runtime.
+// This avoids accidental Data Proxy mode when client was generated without engines.
+if (!process.env.PRISMA_CLIENT_ENGINE_TYPE?.trim()) {
+  process.env.PRISMA_CLIENT_ENGINE_TYPE = 'library'
+}

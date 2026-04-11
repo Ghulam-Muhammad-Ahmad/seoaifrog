@@ -1,9 +1,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  COMPREHENSIVE_AUDIT_SKILL,
   decodeAuditSelection,
   encodeAuditSelection,
   isUrlWithinProjectRoot,
+  normalizeAuditSkills,
 } from './auditSelection.js'
 
 test('decodeAuditSelection supports legacy array payload', () => {
@@ -36,4 +38,9 @@ test('isUrlWithinProjectRoot accepts same-domain project URL', () => {
 
 test('isUrlWithinProjectRoot rejects external domain URL', () => {
   assert.equal(isUrlWithinProjectRoot('https://evil.com/blog/post', 'https://example.com'), false)
+})
+
+test('normalizeAuditSkills makes seo-audit exclusive', () => {
+  const out = normalizeAuditSkills(['seo-content', COMPREHENSIVE_AUDIT_SKILL, 'seo-technical'])
+  assert.deepEqual(out, [COMPREHENSIVE_AUDIT_SKILL])
 })

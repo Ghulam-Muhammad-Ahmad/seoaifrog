@@ -18,6 +18,7 @@ interface AccountSettingsResponseRaw {
     openAiKeyConfigured?: boolean
     googlePsiConfigured?: boolean
     googlePsiTokenExpiresAt?: string | null
+    pageSpeedKeyConfigured?: boolean
   } | null
   name?: string | null
   email?: string | null
@@ -28,6 +29,7 @@ interface AccountSettingsResponseRaw {
   openAiKeyConfigured?: boolean
   googlePsiConfigured?: boolean
   googlePsiTokenExpiresAt?: string | null
+  pageSpeedKeyConfigured?: boolean
   profile?: {
     name?: string | null
     email?: string | null
@@ -42,6 +44,7 @@ export interface AccountSettingsView {
   openaiKeyConfigured: boolean
   googlePsiConfigured: boolean
   googlePsiTokenExpiresAt: string | null
+  pageSpeedKeyConfigured: boolean
 }
 
 function normalizeSettings(raw: unknown): AccountSettingsView {
@@ -79,6 +82,7 @@ function normalizeSettings(raw: unknown): AccountSettingsView {
       typeof u?.googlePsiTokenExpiresAt === 'string' || u?.googlePsiTokenExpiresAt === null
         ? (u.googlePsiTokenExpiresAt ?? null)
         : null,
+    pageSpeedKeyConfigured: typeof u?.pageSpeedKeyConfigured === 'boolean' ? u.pageSpeedKeyConfigured : false,
   }
 }
 
@@ -150,6 +154,7 @@ export function AccountSettings() {
   const openaiKeyConfigured = settings?.openaiKeyConfigured ?? false
   const googlePsiConfigured = settings?.googlePsiConfigured ?? false
   const googlePsiTokenExpiresAt = settings?.googlePsiTokenExpiresAt ?? null
+  const pageSpeedKeyConfigured = settings?.pageSpeedKeyConfigured ?? false
 
   const [profilePending, setProfilePending] = useState(false)
   const [profileError, setProfileError] = useState<string | null>(null)
@@ -179,6 +184,15 @@ export function AccountSettings() {
   const [googleTestPending, setGoogleTestPending] = useState(false)
   const [googleTestError, setGoogleTestError] = useState<string | null>(null)
   const [googleTestSuccess, setGoogleTestSuccess] = useState<string | null>(null)
+  const [showGoogleOauthHelp, setShowGoogleOauthHelp] = useState(false)
+  const [pageSpeedKeyInput, setPageSpeedKeyInput] = useState('')
+  const [pageSpeedPending, setPageSpeedPending] = useState(false)
+  const [pageSpeedDetachPending, setPageSpeedDetachPending] = useState(false)
+  const [pageSpeedError, setPageSpeedError] = useState<string | null>(null)
+  const [pageSpeedSuccess, setPageSpeedSuccess] = useState<string | null>(null)
+  const [pageSpeedTestPending, setPageSpeedTestPending] = useState(false)
+  const [pageSpeedTestError, setPageSpeedTestError] = useState<string | null>(null)
+  const [pageSpeedTestSuccess, setPageSpeedTestSuccess] = useState<string | null>(null)
 
   async function onSaveProfile(e: FormEvent) {
     e.preventDefault()
@@ -370,6 +384,69 @@ export function AccountSettings() {
     }
   }
 
+  async function onSavePageSpeedKey(e: FormEvent) {
+    e.preventDefault()
+    setPageSpeedError(null)
+    setPageSpeedSuccess(null)
+    if (!pageSpeedKeyInput.trim()) {
+      setPageSpeedError('Enter a PageSpeed API key.')
+      return
+    }
+    setPageSpeedPending(true)
+    try {
+      await apiJson('/api/account/pagespeed-key', {
+        method: 'POST',
+        body: JSON.stringify({ apiKey: pageSpeedKeyInput.trim() }),
+      })
+      setPageSpeedKeyInput('')
+      setPageSpeedSuccess('PageSpeed API key saved.')
+      await queryClient.invalidateQueries({ queryKey: ['account', 'settings'] })
+      await refetchSettings()
+    } catch (err) {
+      setPageSpeedError(err instanceof ApiError ? err.message : 'Could not save PageSpeed API key')
+    } finally {
+      setPageSpeedPending(false)
+    }
+  }
+
+  async function onTestPageSpeedKey() {
+    setPageSpeedTestError(null)
+    setPageSpeedTestSuccess(null)
+    setPageSpeedTestPending(true)
+    try {
+      const res = await apiJson<GooglePsiTestResponse>('/api/account/pagespeed-key/test', {
+        method: 'POST',
+        body: JSON.stringify({ apiKey: pageSpeedKeyInput.trim() || undefined }),
+      })
+      if (res.valid) {
+        setPageSpeedTestSuccess(res.message ?? 'PageSpeed API key verified.')
+      } else {
+        setPageSpeedTestError(res.error ?? 'PageSpeed API key verification failed.')
+      }
+    } catch (err) {
+      setPageSpeedTestError(err instanceof ApiError ? err.message : 'Could not test PageSpeed API key')
+    } finally {
+      setPageSpeedTestPending(false)
+    }
+  }
+
+  async function onDetachPageSpeedKey() {
+    setPageSpeedError(null)
+    setPageSpeedSuccess(null)
+    setPageSpeedDetachPending(true)
+    try {
+      await apiJson('/api/account/pagespeed-key', { method: 'DELETE' })
+      setPageSpeedKeyInput('')
+      setPageSpeedSuccess('PageSpeed API key removed.')
+      await queryClient.invalidateQueries({ queryKey: ['account', 'settings'] })
+      await refetchSettings()
+    } catch (err) {
+      setPageSpeedError(err instanceof ApiError ? err.message : 'Could not remove PageSpeed API key')
+    } finally {
+      setPageSpeedDetachPending(false)
+    }
+  }
+
   if (settingsLoading && !settings) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
@@ -454,6 +531,78 @@ export function AccountSettings() {
             {profilePending ? 'Saving…' : 'Save profile'}
           </button>
         </form>
+      </section>
+
+      <section className="mt-8 rounded-card border border-line bg-surface-card p-6">
+        <h2 className="flex items-center gap-2 font-display text-lg font-semibold text-ink-primary">
+          <KeyRound className="h-5 w-5 text-brand-primary" aria-hidden />
+          PageSpeed API key
+        </h2>
+        <p className="mt-1 font-sans text-sm text-ink-secondary">
+          Preferred setup: save your Google PageSpeed Insights API key for speed testing.
+        </p>
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <span className="font-sans text-xs font-semibold text-ink-secondary">Status:</span>
+          {pageSpeedKeyConfigured ? (
+            <span className="rounded-badge border border-semantic-success/40 bg-semantic-success-light px-2.5 py-1 font-sans text-xs font-semibold text-semantic-success">
+              Key configured
+            </span>
+          ) : (
+            <span className="rounded-badge border border-line bg-surface-muted px-2.5 py-1 font-sans text-xs font-semibold text-ink-secondary">
+              No key on file
+            </span>
+          )}
+        </div>
+        <form onSubmit={onSavePageSpeedKey} className="mt-6 max-w-xl space-y-4">
+          <div>
+            <label htmlFor="settings-pagespeed-key" className={labelClass}>
+              API key
+            </label>
+            <input
+              id="settings-pagespeed-key"
+              name="pagespeedApiKey"
+              type="password"
+              autoComplete="off"
+              value={pageSpeedKeyInput}
+              onChange={(e) => setPageSpeedKeyInput(e.target.value)}
+              className={inputClass}
+              placeholder="AIza..."
+            />
+          </div>
+          {pageSpeedError ? <p className="font-sans text-xs text-semantic-error">{pageSpeedError}</p> : null}
+          {pageSpeedSuccess ? <p className="font-sans text-xs text-semantic-success">{pageSpeedSuccess}</p> : null}
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="submit"
+              disabled={pageSpeedPending || pageSpeedDetachPending}
+              className="focus-ring rounded-lg bg-brand-primary px-4 py-2.5 font-sans text-sm font-semibold text-white hover:bg-brand-primary-hover disabled:opacity-60"
+            >
+              {pageSpeedPending ? 'Saving…' : pageSpeedKeyConfigured ? 'Update key' : 'Save key'}
+            </button>
+            <button
+              type="button"
+              disabled={pageSpeedTestPending}
+              onClick={() => void onTestPageSpeedKey()}
+              className="focus-ring rounded-lg border border-line-strong bg-surface-card px-4 py-2.5 font-sans text-sm font-semibold text-ink-primary hover:bg-surface-muted disabled:opacity-60"
+            >
+              {pageSpeedTestPending ? 'Verifying…' : 'Test key'}
+            </button>
+            {pageSpeedKeyConfigured ? (
+              <button
+                type="button"
+                disabled={pageSpeedDetachPending || pageSpeedPending}
+                onClick={() => void onDetachPageSpeedKey()}
+                className="focus-ring rounded-lg border border-semantic-error/40 bg-white px-4 py-2.5 font-sans text-sm font-semibold text-semantic-error hover:bg-semantic-error-light disabled:opacity-60"
+              >
+                {pageSpeedDetachPending ? 'Removing…' : 'Detach key'}
+              </button>
+            ) : null}
+          </div>
+        </form>
+        {pageSpeedTestError ? <p className="mt-4 font-sans text-xs text-semantic-error">{pageSpeedTestError}</p> : null}
+        {pageSpeedTestSuccess ? (
+          <p className="mt-4 font-sans text-xs text-semantic-success">{pageSpeedTestSuccess}</p>
+        ) : null}
       </section>
 
       <section className="mt-8 rounded-card border border-line bg-surface-card p-6">
@@ -604,6 +753,13 @@ export function AccountSettings() {
         <p className="mt-1 font-sans text-sm text-ink-secondary">
           Save your Google OAuth access token for PageSpeed Insights API access (no PSI API key required).
         </p>
+        <button
+          type="button"
+          onClick={() => setShowGoogleOauthHelp(true)}
+          className="focus-ring mt-3 rounded-md border border-line-strong bg-surface-card px-3 py-1.5 font-sans text-xs font-semibold text-ink-primary hover:bg-surface-muted"
+        >
+          How to connect Google OAuth
+        </button>
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <span className="font-sans text-xs font-semibold text-ink-secondary">Status:</span>
           {googlePsiConfigured ? (
@@ -687,6 +843,43 @@ export function AccountSettings() {
           <p className="mt-4 font-sans text-xs text-semantic-success">{googleTestSuccess}</p>
         ) : null}
       </section>
+
+      {showGoogleOauthHelp ? (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-xl rounded-card border border-line bg-surface-card p-5 shadow-xl">
+            <h3 className="font-display text-lg font-semibold text-ink-primary">
+              Connect PageSpeed credentials
+            </h3>
+            <ol className="mt-3 list-decimal space-y-2 pl-5 font-sans text-sm text-ink-secondary">
+              <li>
+                Open Google Cloud Console, create/select a project, and enable the <strong>PageSpeed Insights API</strong>.
+              </li>
+              <li>
+                Create an <strong>API key</strong> and paste it into the <strong>PageSpeed API key</strong> section on this page.
+              </li>
+              <li>
+                Click <strong>Save key</strong> and then <strong>Test key</strong>.
+              </li>
+              <li>
+                Optional: if you prefer OAuth, use the <strong>Google OAuth for PageSpeed</strong> section below.
+              </li>
+              <li>After it shows connected, go to the Speed Testing page and run tests for your project URLs.</li>
+            </ol>
+            <p className="mt-3 font-sans text-xs text-ink-muted">
+              Tip: restrict your API key in Google Cloud to PageSpeed Insights API for better security.
+            </p>
+            <div className="mt-4 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowGoogleOauthHelp(false)}
+                className="focus-ring rounded-lg bg-brand-primary px-4 py-2 font-sans text-sm font-semibold text-white hover:bg-brand-primary-hover"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

@@ -44,6 +44,16 @@ const PRESET_LABELS: Record<keyof typeof SKILL_PRESETS, string> = {
   content: 'Content',
   quick: 'Quick',
 }
+const COMPREHENSIVE_AUDIT_SKILL: SkillId = 'seo-audit'
+const OTHER_SKILL_IDS: SkillId[] = SKILL_IDS.filter(
+  (id): id is SkillId => id !== COMPREHENSIVE_AUDIT_SKILL,
+)
+
+function normalizeSelectedSkills(skills: Iterable<SkillId>): Set<SkillId> {
+  const next = new Set(skills)
+  if (next.has(COMPREHENSIVE_AUDIT_SKILL)) return new Set([COMPREHENSIVE_AUDIT_SKILL])
+  return next
+}
 
 export function AuditSelect() {
   const { projectId } = useParams<{ projectId?: string }>()
@@ -113,15 +123,20 @@ export function AuditSelect() {
   }
 
   function applyPreset(key: keyof typeof SKILL_PRESETS) {
-    setSelected(new Set(SKILL_PRESETS[key] as readonly SkillId[]))
+    setSelected(normalizeSelectedSkills(SKILL_PRESETS[key] as readonly SkillId[]))
   }
 
   function toggle(id: SkillId) {
     setSelected((prev) => {
       const next = new Set(prev)
+      if (id === COMPREHENSIVE_AUDIT_SKILL) {
+        if (next.has(id)) return new Set()
+        return new Set([COMPREHENSIVE_AUDIT_SKILL])
+      }
       if (next.has(id)) next.delete(id)
       else next.add(id)
-      return next
+      next.delete(COMPREHENSIVE_AUDIT_SKILL)
+      return normalizeSelectedSkills(next)
     })
   }
 
@@ -154,10 +169,11 @@ export function AuditSelect() {
     setPending(true)
     setError(null)
     try {
+      const normalizedSkills = [...normalizeSelectedSkills(selected)]
       const audit = await apiJson<{ id: string }>(`/api/projects/${projectId}/audits`, {
         method: 'POST',
         body: JSON.stringify({
-          skills: [...selected],
+          skills: normalizedSkills,
           crawlSessionId: runMode === 'crawl' ? crawlSessionId.trim() || null : null,
           targetUrl: runMode === 'url' ? normalizedTargetUrl : null,
         }),
@@ -344,16 +360,39 @@ export function AuditSelect() {
         ))}
       </div>
 
-      <ul className={`mt-6 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 ${!projectReady ? 'pointer-events-none opacity-50' : ''}`}>
-        {SKILL_IDS.map((id) => (
-          <li key={id}>
-            <label className="focus-ring flex cursor-pointer items-center gap-2 rounded-lg border border-line bg-surface-card px-3 py-2 font-mono text-xs hover:bg-surface-muted/60">
-              <input type="checkbox" checked={selected.has(id)} onChange={() => toggle(id)} />
-              {id}
-            </label>
-          </li>
-        ))}
-      </ul>
+      <div className={`mt-6 ${!projectReady ? 'pointer-events-none opacity-50' : ''}`}>
+        <div className="rounded-card border border-brand-primary/30 bg-brand-primary/5 p-4">
+          <p className="font-sans text-sm font-semibold text-ink-primary">Comprehensive SEO audit</p>
+          <p className="mt-1 font-sans text-xs text-ink-secondary">
+            `seo-audit` is a master comprehensive analysis and runs as a standalone skill.
+          </p>
+          <label className="focus-ring mt-3 inline-flex cursor-pointer items-center gap-2 rounded-lg border border-line bg-surface-card px-3 py-2 font-mono text-xs hover:bg-surface-muted/60">
+            <input
+              type="checkbox"
+              checked={selected.has(COMPREHENSIVE_AUDIT_SKILL)}
+              onChange={() => toggle(COMPREHENSIVE_AUDIT_SKILL)}
+            />
+            {COMPREHENSIVE_AUDIT_SKILL}
+          </label>
+        </div>
+
+        <p className="mt-4 font-sans text-xs font-semibold uppercase tracking-wide text-ink-secondary">Other skills</p>
+        <ul className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {OTHER_SKILL_IDS.map((id) => (
+            <li key={id}>
+              <label className="focus-ring flex cursor-pointer items-center gap-2 rounded-lg border border-line bg-surface-card px-3 py-2 font-mono text-xs hover:bg-surface-muted/60">
+                <input type="checkbox" checked={selected.has(id)} onChange={() => toggle(id)} />
+                {id}
+              </label>
+            </li>
+          ))}
+        </ul>
+      </div>
+      {selected.has(COMPREHENSIVE_AUDIT_SKILL) ? (
+        <p className="mt-2 font-sans text-xs text-ink-secondary">
+          `seo-audit` is comprehensive, so it runs alone and disables other skills automatically.
+        </p>
+      ) : null}
 
       {error ? <p className="mt-4 font-sans text-xs text-semantic-error">{error}</p> : null}
 

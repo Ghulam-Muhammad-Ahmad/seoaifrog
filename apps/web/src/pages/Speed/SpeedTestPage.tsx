@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { RefreshCw, Trash2 } from 'lucide-react'
+import { useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import type { SpeedTestDTO, SpeedTestListDTO } from '@seoaifrog/shared'
 import { apiJson, ApiError } from '@/lib/api'
@@ -9,6 +10,7 @@ type AccountSettingsResponse = {
   user?: {
     googlePsiConfigured?: boolean
     googlePsiTokenExpiresAt?: string | null
+    pageSpeedKeyConfigured?: boolean
   } | null
 }
 
@@ -34,6 +36,7 @@ export function SpeedTestPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const queryClient = useQueryClient()
+  const [showOauthHelp, setShowOauthHelp] = useState(false)
 
   const { data: projects = [], isLoading: projectsLoading } = useQuery({
     queryKey: ['projects'],
@@ -79,6 +82,8 @@ export function SpeedTestPage() {
   const currentProject = projects.find((p) => p.id === projectId)
   const defaultUrl = currentProject?.rootUrl ?? ''
   const oauthConfigured = settings?.user?.googlePsiConfigured === true
+  const pageSpeedKeyConfigured = settings?.user?.pageSpeedKeyConfigured === true
+  const speedCredentialsConfigured = oauthConfigured || pageSpeedKeyConfigured
   const tokenExpiry = settings?.user?.googlePsiTokenExpiresAt ?? null
 
   return (
@@ -138,18 +143,28 @@ export function SpeedTestPage() {
           <div>
             <h2 className="font-display text-lg font-semibold text-ink-primary">Start new test</h2>
             <p className="mt-0.5 font-sans text-xs text-ink-secondary">
-              OAuth status:{' '}
-              {oauthConfigured ? (
+              Credential status:{' '}
+              {speedCredentialsConfigured ? (
                 <span className="font-semibold text-semantic-success">Connected</span>
               ) : (
                 <span className="font-semibold text-semantic-error">Not connected</span>
               )}
-              {tokenExpiry ? ` · expires ${new Date(tokenExpiry).toLocaleString()}` : ''}
+              {pageSpeedKeyConfigured ? ' · API key configured' : ''}
+              {!pageSpeedKeyConfigured && tokenExpiry ? ` · OAuth expires ${new Date(tokenExpiry).toLocaleString()}` : ''}
             </p>
-            {!oauthConfigured ? (
-              <p className="mt-1 font-sans text-xs text-ink-secondary">
-                Connect Google OAuth in <Link to="/settings" className="underline">Account settings</Link> first.
-              </p>
+            {!speedCredentialsConfigured ? (
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <p className="font-sans text-xs text-ink-secondary">
+                  Add a PageSpeed API key (or OAuth token) in <Link to="/settings" className="underline">Account settings</Link> first.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowOauthHelp(true)}
+                  className="focus-ring rounded-md border border-line-strong bg-surface-card px-2 py-1 font-sans text-xs font-semibold text-ink-primary hover:bg-surface-muted"
+                >
+                  How to connect
+                </button>
+              </div>
             ) : null}
           </div>
         </div>
@@ -197,7 +212,7 @@ export function SpeedTestPage() {
           </div>
           <button
             type="submit"
-            disabled={!oauthConfigured || runMutation.isPending}
+            disabled={!speedCredentialsConfigured || runMutation.isPending}
             className="focus-ring rounded-lg bg-brand-primary px-4 py-2 font-sans text-sm font-semibold text-white hover:bg-brand-primary-hover disabled:opacity-60"
           >
             {runMutation.isPending ? 'Running…' : 'Run test'}
@@ -259,6 +274,46 @@ export function SpeedTestPage() {
           </ul>
         )}
       </div>
+
+      {showOauthHelp ? (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-xl rounded-card border border-line bg-surface-card p-5 shadow-xl">
+            <h3 className="font-display text-lg font-semibold text-ink-primary">
+              Connect PageSpeed credentials
+            </h3>
+            <ol className="mt-3 list-decimal space-y-2 pl-5 font-sans text-sm text-ink-secondary">
+              <li>
+                Open Google Cloud Console and create/select a project. Enable <strong>PageSpeed Insights API</strong>.
+              </li>
+              <li>
+                Create an <strong>API key</strong> and keep it restricted to PageSpeed Insights API.
+              </li>
+              <li>
+                Go to <Link to="/settings" className="underline">Account settings</Link> and paste the key in the
+                <strong> PageSpeed API key</strong> section.
+              </li>
+              <li>
+                Click <strong>Save key</strong>, then click <strong>Test key</strong>.
+              </li>
+              <li>
+                Optional: if needed, you can still use Google OAuth token as fallback.
+              </li>
+            </ol>
+            <p className="mt-3 font-sans text-xs text-ink-muted">
+              Tip: if tests fail, regenerate the API key and update it in settings.
+            </p>
+            <div className="mt-4 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowOauthHelp(false)}
+                className="focus-ring rounded-lg bg-brand-primary px-4 py-2 font-sans text-sm font-semibold text-white hover:bg-brand-primary-hover"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

@@ -274,6 +274,18 @@ function PageDetailModal({
                     <dd className="text-xs text-ink-muted">Length: {fmt(data.metaDescLength)}</dd>
                   </div>
                   <div>
+                    <dt className="text-xs font-semibold text-ink-secondary">OG title</dt>
+                    <dd className="text-ink-primary">{data.ogTitle ?? '—'}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-semibold text-ink-secondary">OG description</dt>
+                    <dd className="text-ink-primary">{data.ogDescription ?? '—'}</dd>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <dt className="text-xs font-semibold text-ink-secondary">OG image</dt>
+                    <dd className="break-all text-ink-primary">{data.ogImage ?? '—'}</dd>
+                  </div>
+                  <div>
                     <dt className="text-xs font-semibold text-ink-secondary">H1</dt>
                     <dd className="text-ink-primary">{data.h1Text ?? '—'}</dd>
                     <dd className="text-xs text-ink-muted">Count: {fmt(data.h1Count)}</dd>
