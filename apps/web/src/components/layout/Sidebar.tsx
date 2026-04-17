@@ -1,14 +1,25 @@
-import { FileSearch, Gauge, SearchCode, LayoutDashboard, Settings } from 'lucide-react'
+import { FileSearch, FileText, FolderKanban, Gauge, SearchCode, LayoutDashboard, Settings } from 'lucide-react'
 import { NavLink, useLocation } from 'react-router-dom'
+import { useProject } from '@/contexts/ProjectContext'
 
 export function Sidebar() {
   const location = useLocation()
+  const { selectedProjectId } = useProject()
+
+  const crawlTo = selectedProjectId ? `/projects/${selectedProjectId}/crawl` : '/crawl'
+  const auditTo = selectedProjectId ? `/projects/${selectedProjectId}/audit` : '/audit'
+  const reportsTo = selectedProjectId ? `/projects/${selectedProjectId}/reports` : '/projects'
+  const speedTo = selectedProjectId ? `/projects/${selectedProjectId}/speed` : '/speed'
+
   const crawlNavActive =
     location.pathname === '/crawl' || /\/projects\/[^/]+\/crawl(\/|$)/.test(location.pathname)
   const auditNavActive =
     location.pathname === '/audit' || /\/projects\/[^/]+\/audit(\/|$)/.test(location.pathname)
+  const reportsNavActive = /\/projects\/[^/]+\/reports(\/|$)/.test(location.pathname)
   const speedNavActive =
     location.pathname === '/speed' || /\/projects\/[^/]+\/speed(\/|$)/.test(location.pathname)
+  const projectsNavActive =
+    location.pathname === '/projects' || /^\/projects\/[^/]+$/.test(location.pathname)
 
   return (
     <aside className="fixed left-0 top-0 z-50 flex h-full w-sidebar flex-col border-r border-line bg-surface-card">
@@ -37,7 +48,20 @@ export function Sidebar() {
         </NavLink>
 
         <NavLink
-          to="/crawl"
+          to="/projects"
+          className={[
+            'focus-ring flex items-center gap-2 rounded-lg px-3 py-2.5 font-sans text-sm font-semibold transition-colors',
+            projectsNavActive
+              ? 'bg-brand-primary-light text-brand-deep'
+              : 'text-ink-secondary hover:bg-surface-muted hover:text-ink-primary',
+          ].join(' ')}
+        >
+          <FolderKanban className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
+          All projects
+        </NavLink>
+
+        <NavLink
+          to={crawlTo}
           className={[
             'focus-ring flex items-center gap-2 rounded-lg px-3 py-2.5 font-sans text-sm font-semibold transition-colors',
             crawlNavActive
@@ -50,7 +74,20 @@ export function Sidebar() {
         </NavLink>
 
         <NavLink
-          to="/audit"
+          to={speedTo}
+          className={[
+            'focus-ring flex items-center gap-2 rounded-lg px-3 py-2.5 font-sans text-sm font-semibold transition-colors',
+            speedNavActive
+              ? 'bg-brand-primary-light text-brand-deep'
+              : 'text-ink-secondary hover:bg-surface-muted hover:text-ink-primary',
+          ].join(' ')}
+        >
+          <Gauge className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
+          Speed testing
+        </NavLink>
+
+        <NavLink
+          to={auditTo}
           className={[
             'focus-ring flex items-center gap-2 rounded-lg px-3 py-2.5 font-sans text-sm font-semibold transition-colors',
             auditNavActive
@@ -63,16 +100,16 @@ export function Sidebar() {
         </NavLink>
 
         <NavLink
-          to="/speed"
+          to={reportsTo}
           className={[
             'focus-ring flex items-center gap-2 rounded-lg px-3 py-2.5 font-sans text-sm font-semibold transition-colors',
-            speedNavActive
+            reportsNavActive
               ? 'bg-brand-primary-light text-brand-deep'
               : 'text-ink-secondary hover:bg-surface-muted hover:text-ink-primary',
           ].join(' ')}
         >
-          <Gauge className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
-          Speed testing
+          <FileText className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
+          Reports
         </NavLink>
 
         <NavLink

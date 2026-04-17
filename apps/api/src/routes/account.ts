@@ -27,12 +27,6 @@ const openaiKeyTestBody = z.object({
   apiKey: z.string().min(1).max(4096).optional(),
 })
 
-const googlePsiOauthBody = z.object({
-  accessToken: z.string().min(1).max(8192),
-  refreshToken: z.string().min(1).max(8192).optional(),
-  expiresInSec: z.number().int().positive().max(31_536_000).optional(),
-})
-
 function settingsUserDto(u: {
   id: string
   email: string
@@ -43,8 +37,6 @@ function settingsUserDto(u: {
   updatedAt: Date
   openAiKeyConfigured: boolean
   pageSpeedKeyConfigured: boolean
-  googlePsiConfigured: boolean
-  googlePsiTokenExpiresAt: Date | null
 }) {
   return {
     id: u.id,
@@ -56,8 +48,6 @@ function settingsUserDto(u: {
     updatedAt: u.updatedAt.toISOString(),
     openAiKeyConfigured: u.openAiKeyConfigured,
     pageSpeedKeyConfigured: u.pageSpeedKeyConfigured,
-    googlePsiConfigured: u.googlePsiConfigured,
-    googlePsiTokenExpiresAt: u.googlePsiTokenExpiresAt?.toISOString() ?? null,
   }
 }
 
@@ -101,23 +91,15 @@ const accountRoutes: FastifyPluginAsync = async (fastify) => {
         updatedAt: true,
         openaiApiKeyEnc: true,
         pagespeedApiKeyEnc: true,
-        googlePsiConnection: {
-          select: {
-            id: true,
-            tokenExpiresAt: true,
-          },
-        },
       },
     })
     if (!u) return { user: null }
-    const { openaiApiKeyEnc, pagespeedApiKeyEnc, googlePsiConnection, ...rest } = u
+    const { openaiApiKeyEnc, pagespeedApiKeyEnc, ...rest } = u
     return {
       user: settingsUserDto({
         ...rest,
         openAiKeyConfigured: Boolean(openaiApiKeyEnc),
         pageSpeedKeyConfigured: Boolean(pagespeedApiKeyEnc),
-        googlePsiConfigured: Boolean(googlePsiConnection),
-        googlePsiTokenExpiresAt: googlePsiConnection?.tokenExpiresAt ?? null,
       }),
     }
   })
@@ -153,22 +135,14 @@ const accountRoutes: FastifyPluginAsync = async (fastify) => {
         updatedAt: true,
         openaiApiKeyEnc: true,
         pagespeedApiKeyEnc: true,
-        googlePsiConnection: {
-          select: {
-            id: true,
-            tokenExpiresAt: true,
-          },
-        },
       },
     })
-    const { openaiApiKeyEnc, pagespeedApiKeyEnc, googlePsiConnection, ...rest } = updated
+    const { openaiApiKeyEnc, pagespeedApiKeyEnc, ...rest } = updated
     return {
       user: settingsUserDto({
         ...rest,
         openAiKeyConfigured: Boolean(openaiApiKeyEnc),
         pageSpeedKeyConfigured: Boolean(pagespeedApiKeyEnc),
-        googlePsiConfigured: Boolean(googlePsiConnection),
-        googlePsiTokenExpiresAt: googlePsiConnection?.tokenExpiresAt ?? null,
       }),
     }
   })
@@ -224,22 +198,14 @@ const accountRoutes: FastifyPluginAsync = async (fastify) => {
         updatedAt: true,
         openaiApiKeyEnc: true,
         pagespeedApiKeyEnc: true,
-        googlePsiConnection: {
-          select: {
-            id: true,
-            tokenExpiresAt: true,
-          },
-        },
       },
     })
-    const { openaiApiKeyEnc, pagespeedApiKeyEnc, googlePsiConnection, ...rest } = updated
+    const { openaiApiKeyEnc, pagespeedApiKeyEnc, ...rest } = updated
     return {
       user: settingsUserDto({
         ...rest,
         openAiKeyConfigured: Boolean(openaiApiKeyEnc),
         pageSpeedKeyConfigured: Boolean(pagespeedApiKeyEnc),
-        googlePsiConfigured: Boolean(googlePsiConnection),
-        googlePsiTokenExpiresAt: googlePsiConnection?.tokenExpiresAt ?? null,
       }),
     }
   })
@@ -258,22 +224,14 @@ const accountRoutes: FastifyPluginAsync = async (fastify) => {
         updatedAt: true,
         openaiApiKeyEnc: true,
         pagespeedApiKeyEnc: true,
-        googlePsiConnection: {
-          select: {
-            id: true,
-            tokenExpiresAt: true,
-          },
-        },
       },
     })
-    const { openaiApiKeyEnc, pagespeedApiKeyEnc, googlePsiConnection, ...rest } = updated
+    const { openaiApiKeyEnc, pagespeedApiKeyEnc, ...rest } = updated
     return {
       user: settingsUserDto({
         ...rest,
         openAiKeyConfigured: Boolean(openaiApiKeyEnc),
         pageSpeedKeyConfigured: Boolean(pagespeedApiKeyEnc),
-        googlePsiConfigured: Boolean(googlePsiConnection),
-        googlePsiTokenExpiresAt: googlePsiConnection?.tokenExpiresAt ?? null,
       }),
     }
   })
@@ -372,94 +330,6 @@ const accountRoutes: FastifyPluginAsync = async (fastify) => {
     }
   })
 
-  fastify.post('/account/google-psi-oauth', async (request, reply) => {
-    const parsed = googlePsiOauthBody.safeParse(request.body)
-    if (!parsed.success) return reply.status(400).send({ error: 'Invalid body' })
-
-    const key = encryptionKeyOr503(reply)
-    if (!key) return
-
-    let accessTokenEnc: string
-    let refreshTokenEnc: string | null = null
-    try {
-      accessTokenEnc = encryptUserSecret(parsed.data.accessToken, key)
-      refreshTokenEnc = parsed.data.refreshToken ? encryptUserSecret(parsed.data.refreshToken, key) : null
-    } catch (e: unknown) {
-      fastify.log.error({ err: e }, 'encrypt google oauth token')
-      return reply.status(500).send({ error: 'Could not store Google OAuth token' })
-    }
-
-    const tokenExpiresAt =
-      parsed.data.expiresInSec != null ? new Date(Date.now() + parsed.data.expiresInSec * 1000) : null
-
-    await fastify.prisma.googlePsiConnection.upsert({
-      where: { userId: request.user!.id },
-      create: {
-        userId: request.user!.id,
-        accessTokenEnc,
-        refreshTokenEnc,
-        tokenExpiresAt,
-      },
-      update: {
-        accessTokenEnc,
-        refreshTokenEnc,
-        tokenExpiresAt,
-      },
-    })
-
-    return {
-      ok: true,
-      message: 'Google OAuth token saved.',
-      googlePsiConfigured: true,
-      googlePsiTokenExpiresAt: tokenExpiresAt?.toISOString() ?? null,
-    }
-  })
-
-  fastify.delete('/account/google-psi-oauth', async (request) => {
-    await fastify.prisma.googlePsiConnection.deleteMany({
-      where: { userId: request.user!.id },
-    })
-    return { ok: true, googlePsiConfigured: false, googlePsiTokenExpiresAt: null }
-  })
-
-  fastify.post('/account/google-psi-oauth/test', async (request, reply) => {
-    const key = encryptionKeyOr503(reply)
-    if (!key) return
-
-    const row = await fastify.prisma.googlePsiConnection.findUnique({
-      where: { userId: request.user!.id },
-      select: { accessTokenEnc: true, tokenExpiresAt: true },
-    })
-    if (!row?.accessTokenEnc) {
-      return reply.status(400).send({ error: 'Google OAuth is not connected for this account' })
-    }
-
-    let accessToken: string
-    try {
-      accessToken = decryptUserSecret(row.accessTokenEnc, key)
-    } catch (e: unknown) {
-      fastify.log.error({ err: e }, 'decrypt google oauth token')
-      return reply.status(500).send({ error: 'Could not read saved Google OAuth token' })
-    }
-
-    if (row.tokenExpiresAt && row.tokenExpiresAt.getTime() <= Date.now()) {
-      return reply.status(401).send({ error: 'Saved Google OAuth token has expired. Reconnect your account.' })
-    }
-
-    try {
-      await runPageSpeed({
-        url: 'https://example.com/',
-        strategy: 'mobile',
-        accessToken,
-      })
-      return { valid: true, message: 'Google OAuth token is valid for PageSpeed Insights' }
-    } catch (e: unknown) {
-      const err = e as { message?: string; statusCode?: number }
-      return reply
-        .status(err.statusCode && err.statusCode >= 400 ? err.statusCode : 400)
-        .send({ valid: false, error: err.message ?? 'Google OAuth validation failed' })
-    }
-  })
 }
 
 export default accountRoutes

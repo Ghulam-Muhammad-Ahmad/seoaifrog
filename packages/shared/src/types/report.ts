@@ -32,6 +32,7 @@ export interface ReportDTO {
   format: string
   overallScore: number | null
   createdAt: string
+  archived: boolean
   /** Inline markdown (preview / fetch) */
   downloadUrl?: string
   /** Attachment download */

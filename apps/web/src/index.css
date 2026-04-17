@@ -99,3 +99,195 @@
   outline: 2px solid var(--brand-glow);
   outline-offset: 2px;
 }
+
+/* Dashboard stagger entrance */
+.dash-stagger-1 { animation: fadeUp 0.5s cubic-bezier(0.22,1,0.36,1) 0.04s forwards; opacity: 0; }
+.dash-stagger-2 { animation: fadeUp 0.5s cubic-bezier(0.22,1,0.36,1) 0.10s forwards; opacity: 0; }
+.dash-stagger-3 { animation: fadeUp 0.5s cubic-bezier(0.22,1,0.36,1) 0.16s forwards; opacity: 0; }
+.dash-stagger-4 { animation: fadeUp 0.5s cubic-bezier(0.22,1,0.36,1) 0.22s forwards; opacity: 0; }
+.dash-stagger-5 { animation: fadeUp 0.5s cubic-bezier(0.22,1,0.36,1) 0.30s forwards; opacity: 0; }
+.dash-stagger-6 { animation: fadeUp 0.5s cubic-bezier(0.22,1,0.36,1) 0.38s forwards; opacity: 0; }
+
+/* Stat card shimmer on hover */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.stat-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.stat-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 40%,
+    rgba(253,230,138,0.08) 50%,
+    transparent 60%
+  );
+  background-size: 200% 100%;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.stat-shimmer:hover::after {
+  opacity: 1;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
+/* Score ring animation */
+@keyframes scoreStroke {
+  from { stroke-dashoffset: var(--score-circumference, 251); }
+  to { stroke-dashoffset: var(--score-offset, 251); }
+}
+.score-ring-animated {
+  animation: scoreStroke 1.2s cubic-bezier(0.22,1,0.36,1) 0.4s forwards;
+}
+
+/* Skeleton pulse for loading states */
+@keyframes skeletonPulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.2; }
+}
+.skeleton-pulse {
+  animation: skeletonPulse 1.6s ease-in-out infinite;
+  background: linear-gradient(90deg, var(--bg-muted), var(--bg-subtle), var(--bg-muted));
+  background-size: 200% 100%;
+  border-radius: 8px;
+}
+
+/* ── Landing page additions ─────────────────────────────────────────────── */
+
+.gradient-text {
+  background: linear-gradient(135deg, #d97706 0%, #ea580c 60%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Scroll-triggered reveal */
+.section-reveal {
+  opacity: 0;
+  transform: translateY(22px);
+  transition: opacity 0.65s cubic-bezier(0.22, 1, 0.36, 1),
+              transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.section-reveal.in-view {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Terminal line-by-line appearance */
+@keyframes lineSlide {
+  from { opacity: 0; transform: translateX(-6px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.tl-1 { animation: lineSlide 0.35s ease-out 0.5s both; }
+.tl-2 { animation: lineSlide 0.35s ease-out 1.0s both; }
+.tl-3 { animation: lineSlide 0.35s ease-out 1.5s both; }
+.tl-4 { animation: lineSlide 0.35s ease-out 2.0s both; }
+.tl-5 { animation: lineSlide 0.35s ease-out 2.5s both; }
+.tl-6 { animation: lineSlide 0.35s ease-out 3.0s both; }
+.tl-7 { animation: lineSlide 0.35s ease-out 3.5s both; }
+
+/* Blinking cursor */
+@keyframes cursorBlink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+.cursor-blink {
+  display: inline-block;
+  width: 6px;
+  height: 12px;
+  background: #d97706;
+  animation: cursorBlink 1s step-end infinite;
+  margin-left: 2px;
+  vertical-align: middle;
+  border-radius: 1px;
+}
+
+/* Skill pill hover */
+.skill-pill {
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+.skill-pill:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 6px 20px rgba(217, 119, 6, 0.18);
+  border-color: rgba(217, 119, 6, 0.45);
+}
+
+/* Feature card hover */
+.feature-card {
+  transition: transform 0.22s ease, box-shadow 0.22s ease;
+}
+.feature-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.07);
+}
+
+/* Pricing card hover */
+.pricing-card {
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+.pricing-card:hover {
+  transform: translateY(-4px);
+}
+.pricing-card-featured:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 24px 64px rgba(217, 119, 6, 0.18);
+}
+
+/* Sticky nav on scroll */
+.nav-scrolled {
+  background: rgba(255, 255, 255, 0.92) !important;
+  backdrop-filter: blur(14px);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.06);
+}
+
+/* FAQ accordion */
+.faq-answer {
+  overflow: hidden;
+  transition: max-height 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+              opacity 0.28s ease;
+}
+
+/* Score ring animation */
+@keyframes ringDraw {
+  from { stroke-dashoffset: 188; }
+  to   { stroke-dashoffset: var(--ring-to, 188); }
+}
+.ring-animated {
+  animation: ringDraw 1.4s cubic-bezier(0.22, 1, 0.36, 1) 0.3s both;
+}
+
+/* Testimonial quote decoration */
+.quote-mark::before {
+  content: '\201C';
+  font-family: var(--font-display);
+  font-size: 5rem;
+  line-height: 1;
+  color: #fcd34d;
+  opacity: 0.4;
+  position: absolute;
+  top: -0.5rem;
+  left: 1rem;
+  pointer-events: none;
+}
+
+/* Activity kind badges */
+.badge-crawl {
+  background-color: #ecfeff;
+  color: #0891b2;
+  border: 1px solid rgba(8,145,178,0.15);
+}
+.badge-audit {
+  background-color: #fffbeb;
+  color: #d97706;
+  border: 1px solid rgba(217,119,6,0.15);
+}
+.badge-report {
+  background-color: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid rgba(22,163,74,0.15);
+}

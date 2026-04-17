@@ -1,19 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { RefreshCw, XCircle } from 'lucide-react'
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { SKILL_IDS, SKILL_PRESETS, type AuditDTO, type SkillId } from '@seoaifrog/shared'
 import { apiJson } from '@/lib/api'
-
-type ProjectRow = { id: string; name: string; rootUrl?: string | null }
-
-async function fetchProjects(): Promise<ProjectRow[]> {
-  try {
-    return await apiJson<ProjectRow[]>('/api/projects')
-  } catch {
-    return []
-  }
-}
+import { useProject } from '@/contexts/ProjectContext'
 
 type CrawlListItem = {
   id: string
@@ -56,9 +47,10 @@ function normalizeSelectedSkills(skills: Iterable<SkillId>): Set<SkillId> {
 }
 
 export function AuditSelect() {
-  const { projectId } = useParams<{ projectId?: string }>()
+  const { projectId: paramProjectId } = useParams<{ projectId?: string }>()
+  const { selectedProjectId, selectedProject: ctxProject } = useProject()
+  const projectId = paramProjectId ?? selectedProjectId
   const navigate = useNavigate()
-  const location = useLocation()
   const [selected, setSelected] = useState<Set<SkillId>>(() => new Set(SKILL_PRESETS.quick))
   const [crawlSessionId, setCrawlSessionId] = useState<string>('')
   const [runMode, setRunMode] = useState<'crawl' | 'url'>('crawl')
@@ -67,11 +59,6 @@ export function AuditSelect() {
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const queryClient = useQueryClient()
-
-  const { data: projects = [], isLoading: projectsLoading } = useQuery({
-    queryKey: ['projects'],
-    queryFn: fetchProjects,
-  })
 
   const { data: crawls = [] } = useQuery({
     queryKey: ['project-crawls', projectId],
@@ -117,11 +104,6 @@ export function AuditSelect() {
     setCrawlSessionId(best.id)
   }, [crawls])
 
-  function onProjectChange(id: string) {
-    if (!id) return
-    navigate(`/projects/${id}/audit`, { replace: location.pathname === '/audit' })
-  }
-
   function applyPreset(key: keyof typeof SKILL_PRESETS) {
     setSelected(normalizeSelectedSkills(SKILL_PRESETS[key] as readonly SkillId[]))
   }
@@ -142,7 +124,6 @@ export function AuditSelect() {
 
   async function startAudit() {
     if (!projectId) return
-    const selectedProject = projects.find((p) => p.id === projectId) ?? null
 
     let normalizedTargetUrl: string | null = null
     if (runMode === 'url') {
@@ -153,7 +134,7 @@ export function AuditSelect() {
       }
       try {
         const target = new URL(raw)
-        const root = new URL(selectedProject?.rootUrl ?? '')
+        const root = new URL(ctxProject?.rootUrl ?? '')
         const normalizeHost = (host: string) => host.toLowerCase().replace(/^www\./, '')
         if (normalizeHost(target.hostname) !== normalizeHost(root.hostname)) {
           setError('URL must be within the selected project domain.')
@@ -187,7 +168,6 @@ export function AuditSelect() {
   }
 
   const projectReady = Boolean(projectId)
-  const selectedProject = projects.find((p) => p.id === projectId) ?? null
   const pendingCount = audits.filter((a) => a.status === 'PENDING').length
   const runningCount = audits.filter((a) => a.status === 'RUNNING').length
   const completedCount = audits.filter((a) => a.status === 'COMPLETED').length
@@ -205,58 +185,15 @@ export function AuditSelect() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="font-display text-2xl font-bold text-ink-primary">SEO audits</h1>
-          <p className="mt-1 font-sans text-sm text-ink-secondary">Pick a project, start a new audit, and manage existing audits.</p>
+          <p className="mt-1 font-sans text-sm text-ink-secondary">Start a new audit and manage existing audits.</p>
         </div>
       </div>
 
-      <div className="mt-6 rounded-card border border-line bg-surface-card p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <label className="block font-sans text-sm font-semibold text-ink-primary" htmlFor="audit-project">
-              Project
-            </label>
-            <p className="mt-1 font-sans text-xs text-ink-secondary">
-              Select the project for this audit workspace. You can also create a new project.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link
-              to="/projects"
-              className="focus-ring rounded-lg border border-line-strong bg-surface-card px-3 py-1.5 font-sans text-xs font-semibold text-ink-primary hover:bg-surface-muted"
-            >
-              Select / Manage
-            </Link>
-            <Link
-              to="/projects"
-              className="focus-ring rounded-lg bg-brand-primary px-3 py-1.5 font-sans text-xs font-semibold text-white hover:bg-brand-primary-hover"
-            >
-              New project
-            </Link>
-          </div>
+      {!projectReady ? (
+        <div className="mt-6 rounded-card border border-dashed border-line bg-surface-muted/30 p-8 text-center">
+          <p className="font-sans text-sm text-ink-secondary">Select a project from the header to get started.</p>
         </div>
-        <select
-          id="audit-project"
-          value={projectId ?? ''}
-          onChange={(e) => onProjectChange(e.target.value)}
-          disabled={projectsLoading || (!projectsLoading && projects.length === 0)}
-          className="focus-ring mt-3 w-full rounded-lg border border-line bg-surface-muted/40 px-3 py-2 font-sans text-sm text-ink-primary disabled:opacity-60"
-        >
-          {projectsLoading ? (
-            <option value="">Loading projects…</option>
-          ) : projects.length === 0 ? (
-            <option value="">No projects yet</option>
-          ) : (
-            <>
-              {!projectId ? <option value="">Select a project…</option> : null}
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </>
-          )}
-        </select>
-      </div>
+      ) : null}
 
       <div className={`mt-6 rounded-card border border-line bg-surface-card p-4 ${!projectReady ? 'pointer-events-none opacity-50' : ''}`}>
         <h2 className="font-display text-lg font-semibold text-ink-primary">Start new audit</h2>
@@ -295,7 +232,7 @@ export function AuditSelect() {
               <span>
                 <span className="block font-sans text-sm font-semibold text-ink-primary">Specific URL</span>
                 <span className="block font-sans text-xs text-ink-secondary">
-                  URL must match project domain: {selectedProject?.rootUrl ?? 'select project first'}.
+                  URL must match project domain: {ctxProject?.rootUrl ?? 'select project first'}.
                 </span>
               </span>
             </label>

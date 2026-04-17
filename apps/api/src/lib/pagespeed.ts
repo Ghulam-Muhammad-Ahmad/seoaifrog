@@ -5,7 +5,6 @@ export type PageSpeedStrategy = 'mobile' | 'desktop'
 export type PageSpeedRunInput = {
   url: string
   strategy: PageSpeedStrategy
-  accessToken?: string
   apiKey?: string
 }
 
@@ -51,7 +50,7 @@ function mapError(err: unknown): never {
   const body = e.response?.body
   let message = 'PageSpeed request failed'
   if (statusCode === 401 || statusCode === 403) {
-    message = 'Google OAuth token is invalid or missing required permissions'
+    message = 'PageSpeed API key is invalid or missing required permissions'
   } else if (statusCode === 429) {
     message = 'PageSpeed quota exceeded, please try again later'
   } else if (statusCode === 400) {
@@ -78,12 +77,9 @@ export async function runPageSpeed(input: PageSpeedRunInput): Promise<PageSpeedM
   params.append('category', 'pwa')
   if (input.apiKey) params.set('key', input.apiKey)
 
-  const headers: Record<string, string> = {}
-  if (input.accessToken) headers.Authorization = `Bearer ${input.accessToken}`
   const response = await got
     .get('https://www.googleapis.com/pagespeedonline/v5/runPagespeed', {
       searchParams: params,
-      headers,
       responseType: 'json',
       timeout: { request: 30_000 },
       throwHttpErrors: true,

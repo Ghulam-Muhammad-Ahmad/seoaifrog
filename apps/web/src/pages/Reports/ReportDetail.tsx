@@ -1,18 +1,14 @@
-import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, Download } from 'lucide-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Archive, ArchiveRestore, ArrowLeft, Download } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 import type { ReportDTO } from '@seoaifrog/shared'
 import { ReportMarkdownPreview } from '@/components/reports/ReportMarkdownPreview'
-import { apiFetch, apiJson } from '@/lib/api'
+import { apiFetch, apiJson, ApiError } from '@/lib/api'
 import { exportReportFile } from '@/lib/reportExport'
 import { useState } from 'react'
 
-async function fetchReportMeta(reportId: string): Promise<ReportDTO | null> {
-  try {
-    return await apiJson<ReportDTO>(`/api/reports/${reportId}`)
-  } catch {
-    return null
-  }
+async function fetchReportMeta(reportId: string): Promise<ReportDTO> {
+  return await apiJson<ReportDTO>(`/api/reports/${reportId}`)
 }
 
 async function fetchReportMarkdown(reportId: string): Promise<string> {
@@ -21,16 +17,25 @@ async function fetchReportMarkdown(reportId: string): Promise<string> {
   return res.text()
 }
 
+async function patchReportArchived(reportId: string, archived: boolean): Promise<ReportDTO> {
+  return await apiJson<ReportDTO>(`/api/reports/${reportId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ archived }),
+  })
+}
+
 export function ReportDetail() {
   const { projectId, reportId } = useParams<{ projectId: string; reportId: string }>()
   const pid = projectId ?? ''
   const rid = reportId ?? ''
   const [exportError, setExportError] = useState<string | null>(null)
+  const queryClient = useQueryClient()
 
-  const { data: meta, isLoading: metaLoading } = useQuery({
+  const { data: meta, isLoading: metaLoading, error: metaError } = useQuery({
     queryKey: ['report', rid],
     queryFn: () => fetchReportMeta(rid),
     enabled: Boolean(rid),
+    retry: false,
   })
 
   const {
@@ -43,12 +48,28 @@ export function ReportDetail() {
     enabled: Boolean(rid && meta),
   })
 
+  const archiveMutation = useMutation({
+    mutationFn: ({ archived }: { archived: boolean }) => patchReportArchived(rid, archived),
+    onSuccess: (updated) => {
+      void queryClient.setQueryData<ReportDTO>(['report', rid], updated)
+      void queryClient.invalidateQueries({ queryKey: ['reports', pid] })
+    },
+  })
+
   if (!pid || !rid) {
     return <p className="font-sans text-sm text-semantic-error">Missing route params.</p>
   }
 
   if (metaLoading) {
     return <p className="font-sans text-sm text-ink-muted">Loading report…</p>
+  }
+
+  if (metaError) {
+    return (
+      <p className="font-sans text-sm text-semantic-error">
+        {metaError instanceof ApiError ? metaError.message : 'Failed to load report.'}
+      </p>
+    )
   }
 
   if (!meta) {
@@ -69,11 +90,37 @@ export function ReportDetail() {
           <h1 className="font-display text-2xl font-bold text-ink-primary">{meta.title}</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {meta.archived ? (
+            <span className="rounded-badge border border-line-strong bg-surface-muted px-2 py-0.5 font-sans text-xs font-semibold text-ink-secondary">
+              Archived
+            </span>
+          ) : null}
           {meta.overallScore != null ? (
             <span className="rounded-badge bg-brand-primary-light px-2 py-0.5 font-mono text-xs font-semibold text-brand-deep">
               Score {meta.overallScore}
             </span>
           ) : null}
+          {meta.archived ? (
+            <button
+              type="button"
+              disabled={archiveMutation.isPending}
+              onClick={() => archiveMutation.mutate({ archived: false })}
+              className="focus-ring inline-flex items-center gap-2 rounded-lg border border-line-strong px-4 py-2 font-sans text-sm font-semibold text-ink-primary hover:bg-surface-muted disabled:opacity-60"
+            >
+              <ArchiveRestore className="h-4 w-4" aria-hidden />
+              Restore
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={archiveMutation.isPending}
+              onClick={() => archiveMutation.mutate({ archived: true })}
+              className="focus-ring inline-flex items-center gap-2 rounded-lg border border-line-strong px-4 py-2 font-sans text-sm font-semibold text-ink-secondary hover:bg-surface-muted disabled:opacity-60"
+            >
+              <Archive className="h-4 w-4" aria-hidden />
+              Archive
+            </button>
+          )}
           <button
             type="button"
             onClick={() => {

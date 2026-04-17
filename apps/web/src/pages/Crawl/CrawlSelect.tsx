@@ -1,9 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Pause, Play, RefreshCw, Square } from 'lucide-react'
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { apiJson } from '@/lib/api'
-
-type ProjectRow = { id: string; name: string; rootUrl?: string | null }
+import { useProject } from '@/contexts/ProjectContext'
 
 type CrawlSessionRow = {
   id: string
@@ -15,14 +14,6 @@ type CrawlSessionRow = {
   errorMessage: string | null
 }
 
-async function fetchProjects(): Promise<ProjectRow[]> {
-  try {
-    return await apiJson<ProjectRow[]>('/api/projects')
-  } catch {
-    return []
-  }
-}
-
 async function fetchCrawls(projectId: string): Promise<CrawlSessionRow[]> {
   try {
     return await apiJson<CrawlSessionRow[]>(`/api/projects/${projectId}/crawls`)
@@ -32,15 +23,10 @@ async function fetchCrawls(projectId: string): Promise<CrawlSessionRow[]> {
 }
 
 export function CrawlSelect() {
-  const { projectId } = useParams<{ projectId?: string }>()
-  const navigate = useNavigate()
-  const location = useLocation()
+  const { projectId: paramProjectId } = useParams<{ projectId?: string }>()
+  const { selectedProjectId } = useProject()
+  const projectId = paramProjectId ?? selectedProjectId
   const queryClient = useQueryClient()
-
-  const { data: projects = [], isLoading: projectsLoading } = useQuery({
-    queryKey: ['projects'],
-    queryFn: fetchProjects,
-  })
 
   const {
     data: crawls = [],
@@ -91,60 +77,13 @@ export function CrawlSelect() {
   return (
     <div>
       <h1 className="font-display text-2xl font-bold text-ink-primary">Crawling</h1>
-      <p className="mt-1 font-sans text-sm text-ink-secondary">Select a project, start new crawls, and manage existing sessions.</p>
+      <p className="mt-1 font-sans text-sm text-ink-secondary">Start new crawls and manage existing sessions.</p>
 
-      <div className="mt-6 rounded-card border border-line bg-surface-card p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <label className="block font-sans text-sm font-semibold text-ink-primary" htmlFor="crawl-project">
-              Project
-            </label>
-            <p className="mt-1 font-sans text-xs text-ink-secondary">
-              Choose the project where you want to run crawling.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link
-              to="/projects"
-              className="focus-ring rounded-lg border border-line-strong bg-surface-card px-3 py-1.5 font-sans text-xs font-semibold text-ink-primary hover:bg-surface-muted"
-            >
-              Select / Manage
-            </Link>
-            <Link
-              to="/projects"
-              className="focus-ring rounded-lg bg-brand-primary px-3 py-1.5 font-sans text-xs font-semibold text-white hover:bg-brand-primary-hover"
-            >
-              New project
-            </Link>
-          </div>
+      {!projectReady ? (
+        <div className="mt-6 rounded-card border border-dashed border-line bg-surface-muted/30 p-8 text-center">
+          <p className="font-sans text-sm text-ink-secondary">Select a project from the header to get started.</p>
         </div>
-        <select
-          id="crawl-project"
-          value={projectId ?? ''}
-          onChange={(e) => {
-            const id = e.target.value
-            if (!id) return
-            navigate(`/projects/${id}/crawl`, { replace: location.pathname === '/crawl' })
-          }}
-          disabled={projectsLoading || (!projectsLoading && projects.length === 0)}
-          className="focus-ring mt-3 w-full rounded-lg border border-line bg-surface-muted/40 px-3 py-2 font-sans text-sm text-ink-primary disabled:opacity-60"
-        >
-          {projectsLoading ? (
-            <option value="">Loading projects…</option>
-          ) : projects.length === 0 ? (
-            <option value="">No projects yet</option>
-          ) : (
-            <>
-              {!projectId ? <option value="">Select a project…</option> : null}
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </>
-          )}
-        </select>
-      </div>
+      ) : null}
 
       <div className={`mt-6 rounded-card border border-line bg-surface-card p-4 ${!projectReady ? 'pointer-events-none opacity-50' : ''}`}>
         <div className="flex flex-wrap items-center justify-between gap-3">

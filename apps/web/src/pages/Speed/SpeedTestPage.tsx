@@ -1,25 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { RefreshCw, Trash2 } from 'lucide-react'
-import { useState } from 'react'
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { RefreshCw, Trash2, FileText } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { SpeedTestDTO, SpeedTestListDTO } from '@seoaifrog/shared'
 import { apiJson, ApiError } from '@/lib/api'
+import { useProject } from '@/contexts/ProjectContext'
 
-type ProjectRow = { id: string; name: string; rootUrl: string }
 type AccountSettingsResponse = {
   user?: {
     googlePsiConfigured?: boolean
     googlePsiTokenExpiresAt?: string | null
     pageSpeedKeyConfigured?: boolean
   } | null
-}
-
-async function fetchProjects(): Promise<ProjectRow[]> {
-  try {
-    return await apiJson<ProjectRow[]>('/api/projects')
-  } catch {
-    return []
-  }
 }
 
 async function fetchSpeedTests(projectId: string): Promise<SpeedTestDTO[]> {
@@ -31,17 +23,21 @@ async function fetchAccountSettings(): Promise<AccountSettingsResponse> {
   return await apiJson<AccountSettingsResponse>('/api/account/settings')
 }
 
-export function SpeedTestPage() {
-  const { projectId } = useParams<{ projectId?: string }>()
-  const navigate = useNavigate()
-  const location = useLocation()
-  const queryClient = useQueryClient()
-  const [showOauthHelp, setShowOauthHelp] = useState(false)
+type ReportCreated = { id: string; projectId: string }
 
-  const { data: projects = [], isLoading: projectsLoading } = useQuery({
-    queryKey: ['projects'],
-    queryFn: fetchProjects,
-  })
+export function SpeedTestPage() {
+  const { projectId: paramProjectId } = useParams<{ projectId?: string }>()
+  const { selectedProjectId, selectedProject } = useProject()
+  const projectId = paramProjectId ?? selectedProjectId
+  const queryClient = useQueryClient()
+  const navigate = useNavigate()
+  const [showOauthHelp, setShowOauthHelp] = useState(false)
+  const defaultUrl = selectedProject?.rootUrl ?? ''
+  const [pageUrl, setPageUrl] = useState(defaultUrl)
+
+  useEffect(() => {
+    setPageUrl(selectedProject?.rootUrl ?? '')
+  }, [projectId, selectedProject?.rootUrl])
 
   const { data: settings } = useQuery({
     queryKey: ['account', 'settings'],
@@ -79,8 +75,17 @@ export function SpeedTestPage() {
     },
   })
 
-  const currentProject = projects.find((p) => p.id === projectId)
-  const defaultUrl = currentProject?.rootUrl ?? ''
+  const reportMutation = useMutation({
+    mutationFn: async (speedTestId?: string) =>
+      await apiJson<ReportCreated>(`/api/projects/${projectId}/speed-test-reports`, {
+        method: 'POST',
+        body: JSON.stringify(speedTestId ? { speedTestId } : {}),
+      }),
+    onSuccess: (data) => {
+      void navigate(`/projects/${data.projectId}/reports/${data.id}`)
+    },
+  })
+
   const oauthConfigured = settings?.user?.googlePsiConfigured === true
   const pageSpeedKeyConfigured = settings?.user?.pageSpeedKeyConfigured === true
   const speedCredentialsConfigured = oauthConfigured || pageSpeedKeyConfigured
@@ -93,50 +98,11 @@ export function SpeedTestPage() {
         Run user-triggered Google PageSpeed tests and keep results for audits/reports.
       </p>
 
-      <div className="mt-6 rounded-card border border-line bg-surface-card p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <label className="block font-sans text-sm font-semibold text-ink-primary" htmlFor="speed-project">
-              Project
-            </label>
-            <p className="mt-1 font-sans text-xs text-ink-secondary">Choose the project for speed tests.</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link
-              to="/projects"
-              className="focus-ring rounded-lg border border-line-strong bg-surface-card px-3 py-1.5 font-sans text-xs font-semibold text-ink-primary hover:bg-surface-muted"
-            >
-              Select / Manage
-            </Link>
-          </div>
+      {!projectId ? (
+        <div className="mt-6 rounded-card border border-dashed border-line bg-surface-muted/30 p-8 text-center">
+          <p className="font-sans text-sm text-ink-secondary">Select a project from the header to get started.</p>
         </div>
-        <select
-          id="speed-project"
-          value={projectId ?? ''}
-          onChange={(e) => {
-            const id = e.target.value
-            if (!id) return
-            navigate(`/projects/${id}/speed`, { replace: location.pathname === '/speed' })
-          }}
-          disabled={projectsLoading || (!projectsLoading && projects.length === 0)}
-          className="focus-ring mt-3 w-full rounded-lg border border-line bg-surface-muted/40 px-3 py-2 font-sans text-sm text-ink-primary disabled:opacity-60"
-        >
-          {projectsLoading ? (
-            <option value="">Loading projects…</option>
-          ) : projects.length === 0 ? (
-            <option value="">No projects yet</option>
-          ) : (
-            <>
-              {!projectId ? <option value="">Select a project…</option> : null}
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </>
-          )}
-        </select>
-      </div>
+      ) : null}
 
       <div className={`mt-6 rounded-card border border-line bg-surface-card p-4 ${!projectId ? 'pointer-events-none opacity-50' : ''}`}>
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -175,7 +141,7 @@ export function SpeedTestPage() {
             e.preventDefault()
             if (!projectId) return
             const form = new FormData(e.currentTarget)
-            const url = String(form.get('url') ?? '').trim()
+            const url = pageUrl.trim()
             const strategy = (String(form.get('strategy') ?? 'mobile') === 'desktop' ? 'desktop' : 'mobile') as
               | 'mobile'
               | 'desktop'
@@ -191,7 +157,8 @@ export function SpeedTestPage() {
               id="speed-url"
               name="url"
               type="url"
-              defaultValue={defaultUrl}
+              value={pageUrl}
+              onChange={(e) => setPageUrl(e.target.value)}
               required
               className="focus-ring mt-1 w-full rounded-lg border border-line px-3 py-2 font-sans text-sm text-ink-primary"
             />
@@ -226,17 +193,35 @@ export function SpeedTestPage() {
       </div>
 
       <div className={`mt-6 rounded-card border border-line bg-surface-card p-4 ${!projectId ? 'pointer-events-none opacity-50' : ''}`}>
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-display text-lg font-semibold text-ink-primary">Existing tests</h2>
-          <button
-            type="button"
-            onClick={() => void refetch()}
-            className="focus-ring inline-flex items-center gap-1.5 rounded-lg border border-line-strong bg-surface-card px-3 py-1.5 font-sans text-xs font-semibold text-ink-primary hover:bg-surface-muted"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} aria-hidden />
-            Refresh
-          </button>
+          <div className="flex items-center gap-2">
+            {tests.length > 0 ? (
+              <button
+                type="button"
+                disabled={reportMutation.isPending}
+                onClick={() => reportMutation.mutate(undefined)}
+                className="focus-ring inline-flex items-center gap-1.5 rounded-lg bg-brand-primary px-3 py-1.5 font-sans text-xs font-semibold text-white hover:bg-brand-primary-hover disabled:opacity-60"
+              >
+                <FileText className="h-3.5 w-3.5" aria-hidden />
+                {reportMutation.isPending ? 'Generating…' : 'Generate full report'}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => void refetch()}
+              className="focus-ring inline-flex items-center gap-1.5 rounded-lg border border-line-strong bg-surface-card px-3 py-1.5 font-sans text-xs font-semibold text-ink-primary hover:bg-surface-muted"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} aria-hidden />
+              Refresh
+            </button>
+          </div>
         </div>
+        {reportMutation.error ? (
+          <p className="mt-2 font-sans text-xs text-semantic-error">
+            {reportMutation.error instanceof ApiError ? reportMutation.error.message : 'Could not generate report'}
+          </p>
+        ) : null}
         {tests.length === 0 ? (
           <p className="mt-3 font-sans text-xs text-ink-muted">No speed tests yet for this project.</p>
         ) : (
@@ -259,6 +244,15 @@ export function SpeedTestPage() {
                   <span className="rounded-md bg-surface-card px-2 py-1 font-sans text-xs font-semibold text-ink-secondary">
                     SEO {t.seoScore ?? '—'}
                   </span>
+                  <button
+                    type="button"
+                    onClick={() => reportMutation.mutate(t.id)}
+                    disabled={reportMutation.isPending}
+                    className="focus-ring inline-flex items-center gap-1 rounded-md border border-line-strong bg-surface-card px-2 py-1 font-sans text-xs font-semibold text-ink-primary hover:bg-surface-muted disabled:opacity-60"
+                  >
+                    <FileText className="h-3.5 w-3.5" aria-hidden />
+                    Report
+                  </button>
                   <button
                     type="button"
                     onClick={() => deleteMutation.mutate(t.id)}

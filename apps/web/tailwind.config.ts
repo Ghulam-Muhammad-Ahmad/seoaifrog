@@ -61,6 +61,7 @@ export default {
       animation: {
         'fade-up': 'fadeUp 0.6s ease-out forwards',
         grain: 'grain 8s steps(10) infinite',
+        'count-up': 'countPop 0.4s cubic-bezier(0.22,1,0.36,1) forwards',
       },
       keyframes: {
         fadeUp: {
@@ -74,6 +75,11 @@ export default {
           '50%': { transform: 'translate(12%, 9%)' },
           '70%': { transform: 'translate(9%, 4%)' },
           '90%': { transform: 'translate(-1%, 7%)' },
+        },
+        countPop: {
+          '0%': { transform: 'scale(0.8)', opacity: '0' },
+          '60%': { transform: 'scale(1.05)' },
+          '100%': { transform: 'scale(1)', opacity: '1' },
         },
       },
     },

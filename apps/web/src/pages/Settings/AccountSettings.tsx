@@ -16,8 +16,6 @@ interface AccountSettingsResponseRaw {
     email?: string | null
     avatar?: string | null
     openAiKeyConfigured?: boolean
-    googlePsiConfigured?: boolean
-    googlePsiTokenExpiresAt?: string | null
     pageSpeedKeyConfigured?: boolean
   } | null
   name?: string | null
@@ -27,8 +25,6 @@ interface AccountSettingsResponseRaw {
   openaiKeyConfigured?: boolean
   hasOpenAiKey?: boolean
   openAiKeyConfigured?: boolean
-  googlePsiConfigured?: boolean
-  googlePsiTokenExpiresAt?: string | null
   pageSpeedKeyConfigured?: boolean
   profile?: {
     name?: string | null
@@ -42,8 +38,6 @@ export interface AccountSettingsView {
   email: string
   avatarUrl: string
   openaiKeyConfigured: boolean
-  googlePsiConfigured: boolean
-  googlePsiTokenExpiresAt: string | null
   pageSpeedKeyConfigured: boolean
 }
 
@@ -77,11 +71,6 @@ function normalizeSettings(raw: unknown): AccountSettingsView {
     email,
     avatarUrl,
     openaiKeyConfigured,
-    googlePsiConfigured: typeof u?.googlePsiConfigured === 'boolean' ? u.googlePsiConfigured : false,
-    googlePsiTokenExpiresAt:
-      typeof u?.googlePsiTokenExpiresAt === 'string' || u?.googlePsiTokenExpiresAt === null
-        ? (u.googlePsiTokenExpiresAt ?? null)
-        : null,
     pageSpeedKeyConfigured: typeof u?.pageSpeedKeyConfigured === 'boolean' ? u.pageSpeedKeyConfigured : false,
   }
 }
@@ -98,7 +87,7 @@ interface OpenAiKeyTestResponse {
   message?: string
 }
 
-interface GooglePsiTestResponse {
+interface PageSpeedTestResponse {
   valid?: boolean
   message?: string
   error?: string
@@ -152,8 +141,6 @@ export function AccountSettings() {
   }, [snapshot])
 
   const openaiKeyConfigured = settings?.openaiKeyConfigured ?? false
-  const googlePsiConfigured = settings?.googlePsiConfigured ?? false
-  const googlePsiTokenExpiresAt = settings?.googlePsiTokenExpiresAt ?? null
   const pageSpeedKeyConfigured = settings?.pageSpeedKeyConfigured ?? false
 
   const [profilePending, setProfilePending] = useState(false)
@@ -175,16 +162,6 @@ export function AccountSettings() {
   const [keyTestPending, setKeyTestPending] = useState(false)
   const [keyTestError, setKeyTestError] = useState<string | null>(null)
   const [keyTestSuccess, setKeyTestSuccess] = useState<string | null>(null)
-  const [googleTokenInput, setGoogleTokenInput] = useState('')
-  const [googleExpiresInHours, setGoogleExpiresInHours] = useState('1')
-  const [googlePending, setGooglePending] = useState(false)
-  const [googleDetachPending, setGoogleDetachPending] = useState(false)
-  const [googleError, setGoogleError] = useState<string | null>(null)
-  const [googleSuccess, setGoogleSuccess] = useState<string | null>(null)
-  const [googleTestPending, setGoogleTestPending] = useState(false)
-  const [googleTestError, setGoogleTestError] = useState<string | null>(null)
-  const [googleTestSuccess, setGoogleTestSuccess] = useState<string | null>(null)
-  const [showGoogleOauthHelp, setShowGoogleOauthHelp] = useState(false)
   const [pageSpeedKeyInput, setPageSpeedKeyInput] = useState('')
   const [pageSpeedPending, setPageSpeedPending] = useState(false)
   const [pageSpeedDetachPending, setPageSpeedDetachPending] = useState(false)
@@ -313,77 +290,6 @@ export function AccountSettings() {
     }
   }
 
-  async function onSaveGooglePsiToken(e: FormEvent) {
-    e.preventDefault()
-    setGoogleError(null)
-    setGoogleSuccess(null)
-    if (!googleTokenInput.trim()) {
-      setGoogleError('Enter a Google OAuth access token.')
-      return
-    }
-    const parsedHours = Number.parseInt(googleExpiresInHours, 10)
-    if (!Number.isFinite(parsedHours) || parsedHours <= 0) {
-      setGoogleError('Enter a valid token expiry in hours.')
-      return
-    }
-    setGooglePending(true)
-    try {
-      await apiJson('/api/account/google-psi-oauth', {
-        method: 'POST',
-        body: JSON.stringify({
-          accessToken: googleTokenInput.trim(),
-          expiresInSec: parsedHours * 3600,
-        }),
-      })
-      setGoogleTokenInput('')
-      setGoogleSuccess('Google OAuth token saved.')
-      await queryClient.invalidateQueries({ queryKey: ['account', 'settings'] })
-      await refetchSettings()
-    } catch (err) {
-      setGoogleError(err instanceof ApiError ? err.message : 'Could not save Google OAuth token')
-    } finally {
-      setGooglePending(false)
-    }
-  }
-
-  async function onTestGooglePsiToken() {
-    setGoogleTestError(null)
-    setGoogleTestSuccess(null)
-    setGoogleTestPending(true)
-    try {
-      const res = await apiJson<GooglePsiTestResponse>('/api/account/google-psi-oauth/test', {
-        method: 'POST',
-        body: '{}',
-      })
-      if (res.valid) {
-        setGoogleTestSuccess(res.message ?? 'Google OAuth token works for PageSpeed Insights.')
-      } else {
-        setGoogleTestError(res.error ?? 'Google OAuth verification failed.')
-      }
-    } catch (err) {
-      setGoogleTestError(err instanceof ApiError ? err.message : 'Could not test Google OAuth token')
-    } finally {
-      setGoogleTestPending(false)
-    }
-  }
-
-  async function onDetachGooglePsiToken() {
-    setGoogleError(null)
-    setGoogleSuccess(null)
-    setGoogleDetachPending(true)
-    try {
-      await apiJson('/api/account/google-psi-oauth', { method: 'DELETE' })
-      setGoogleTokenInput('')
-      setGoogleSuccess('Google OAuth token removed.')
-      await queryClient.invalidateQueries({ queryKey: ['account', 'settings'] })
-      await refetchSettings()
-    } catch (err) {
-      setGoogleError(err instanceof ApiError ? err.message : 'Could not remove Google OAuth token')
-    } finally {
-      setGoogleDetachPending(false)
-    }
-  }
-
   async function onSavePageSpeedKey(e: FormEvent) {
     e.preventDefault()
     setPageSpeedError(null)
@@ -414,7 +320,7 @@ export function AccountSettings() {
     setPageSpeedTestSuccess(null)
     setPageSpeedTestPending(true)
     try {
-      const res = await apiJson<GooglePsiTestResponse>('/api/account/pagespeed-key/test', {
+      const res = await apiJson<PageSpeedTestResponse>('/api/account/pagespeed-key/test', {
         method: 'POST',
         body: JSON.stringify({ apiKey: pageSpeedKeyInput.trim() || undefined }),
       })
@@ -460,7 +366,7 @@ export function AccountSettings() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-display text-2xl font-bold text-ink-primary">Account settings</h1>
-          <p className="mt-1 font-sans text-sm text-ink-secondary">Profile, password, and your OpenAI API key.</p>
+          <p className="mt-1 font-sans text-sm text-ink-secondary">Profile, password, and API keys.</p>
         </div>
       </div>
 
@@ -745,141 +651,6 @@ export function AccountSettings() {
         ) : null}
       </section>
 
-      <section className="mt-8 rounded-card border border-line bg-surface-card p-6">
-        <h2 className="flex items-center gap-2 font-display text-lg font-semibold text-ink-primary">
-          <KeyRound className="h-5 w-5 text-brand-primary" aria-hidden />
-          Google OAuth for PageSpeed
-        </h2>
-        <p className="mt-1 font-sans text-sm text-ink-secondary">
-          Save your Google OAuth access token for PageSpeed Insights API access (no PSI API key required).
-        </p>
-        <button
-          type="button"
-          onClick={() => setShowGoogleOauthHelp(true)}
-          className="focus-ring mt-3 rounded-md border border-line-strong bg-surface-card px-3 py-1.5 font-sans text-xs font-semibold text-ink-primary hover:bg-surface-muted"
-        >
-          How to connect Google OAuth
-        </button>
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          <span className="font-sans text-xs font-semibold text-ink-secondary">Status:</span>
-          {googlePsiConfigured ? (
-            <span className="rounded-badge border border-semantic-success/40 bg-semantic-success-light px-2.5 py-1 font-sans text-xs font-semibold text-semantic-success">
-              Connected
-            </span>
-          ) : (
-            <span className="rounded-badge border border-line bg-surface-muted px-2.5 py-1 font-sans text-xs font-semibold text-ink-secondary">
-              Not connected
-            </span>
-          )}
-          {googlePsiTokenExpiresAt ? (
-            <span className="font-sans text-xs text-ink-secondary">
-              Expires {new Date(googlePsiTokenExpiresAt).toLocaleString()}
-            </span>
-          ) : null}
-        </div>
-        <form onSubmit={onSaveGooglePsiToken} className="mt-6 max-w-xl space-y-4">
-          <div>
-            <label htmlFor="settings-google-token" className={labelClass}>
-              OAuth access token
-            </label>
-            <input
-              id="settings-google-token"
-              name="googleOAuthToken"
-              type="password"
-              autoComplete="off"
-              value={googleTokenInput}
-              onChange={(e) => setGoogleTokenInput(e.target.value)}
-              className={inputClass}
-              placeholder="ya29..."
-            />
-          </div>
-          <div>
-            <label htmlFor="settings-google-expires" className={labelClass}>
-              Token expiry (hours)
-            </label>
-            <input
-              id="settings-google-expires"
-              name="googleTokenExpiryHours"
-              type="number"
-              min={1}
-              max={24}
-              value={googleExpiresInHours}
-              onChange={(e) => setGoogleExpiresInHours(e.target.value)}
-              className={inputClass}
-            />
-          </div>
-          {googleError ? <p className="font-sans text-xs text-semantic-error">{googleError}</p> : null}
-          {googleSuccess ? <p className="font-sans text-xs text-semantic-success">{googleSuccess}</p> : null}
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="submit"
-              disabled={googlePending || googleDetachPending}
-              className="focus-ring rounded-lg bg-brand-primary px-4 py-2.5 font-sans text-sm font-semibold text-white hover:bg-brand-primary-hover disabled:opacity-60"
-            >
-              {googlePending ? 'Saving…' : googlePsiConfigured ? 'Update token' : 'Save token'}
-            </button>
-            <button
-              type="button"
-              disabled={googleTestPending}
-              onClick={() => void onTestGooglePsiToken()}
-              className="focus-ring rounded-lg border border-line-strong bg-surface-card px-4 py-2.5 font-sans text-sm font-semibold text-ink-primary hover:bg-surface-muted disabled:opacity-60"
-            >
-              {googleTestPending ? 'Verifying…' : 'Test token'}
-            </button>
-            {googlePsiConfigured ? (
-              <button
-                type="button"
-                disabled={googleDetachPending || googlePending}
-                onClick={() => void onDetachGooglePsiToken()}
-                className="focus-ring rounded-lg border border-semantic-error/40 bg-white px-4 py-2.5 font-sans text-sm font-semibold text-semantic-error hover:bg-semantic-error-light disabled:opacity-60"
-              >
-                {googleDetachPending ? 'Removing…' : 'Disconnect'}
-              </button>
-            ) : null}
-          </div>
-        </form>
-        {googleTestError ? <p className="mt-4 font-sans text-xs text-semantic-error">{googleTestError}</p> : null}
-        {googleTestSuccess ? (
-          <p className="mt-4 font-sans text-xs text-semantic-success">{googleTestSuccess}</p>
-        ) : null}
-      </section>
-
-      {showGoogleOauthHelp ? (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-xl rounded-card border border-line bg-surface-card p-5 shadow-xl">
-            <h3 className="font-display text-lg font-semibold text-ink-primary">
-              Connect PageSpeed credentials
-            </h3>
-            <ol className="mt-3 list-decimal space-y-2 pl-5 font-sans text-sm text-ink-secondary">
-              <li>
-                Open Google Cloud Console, create/select a project, and enable the <strong>PageSpeed Insights API</strong>.
-              </li>
-              <li>
-                Create an <strong>API key</strong> and paste it into the <strong>PageSpeed API key</strong> section on this page.
-              </li>
-              <li>
-                Click <strong>Save key</strong> and then <strong>Test key</strong>.
-              </li>
-              <li>
-                Optional: if you prefer OAuth, use the <strong>Google OAuth for PageSpeed</strong> section below.
-              </li>
-              <li>After it shows connected, go to the Speed Testing page and run tests for your project URLs.</li>
-            </ol>
-            <p className="mt-3 font-sans text-xs text-ink-muted">
-              Tip: restrict your API key in Google Cloud to PageSpeed Insights API for better security.
-            </p>
-            <div className="mt-4 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setShowGoogleOauthHelp(false)}
-                className="focus-ring rounded-lg bg-brand-primary px-4 py-2 font-sans text-sm font-semibold text-white hover:bg-brand-primary-hover"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
     </div>
   )
 }
