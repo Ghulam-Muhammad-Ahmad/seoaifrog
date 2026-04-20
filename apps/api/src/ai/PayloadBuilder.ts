@@ -21,6 +21,72 @@ export type SkillPayloadContext = {
   openAiApiKey?: string
 }
 
+/**
+ * Slim upfront payload used when the audit runs in tool-calling mode.
+ * The model has function tools to pull page-level data on demand, so we only
+ * include project metadata, crawl summary, a status histogram, and speed tests.
+ */
+export async function buildToolUsePayload(
+  prisma: PrismaClient,
+  skillName: string,
+  ctx: SkillPayloadContext,
+): Promise<string> {
+  const speedTests = await getRelevantSpeedTests(prisma, ctx.projectId, ctx.targetUrl)
+  const base = {
+    dataSource: 'tool_use',
+    skillName,
+    projectId: ctx.projectId,
+    project: ctx.project,
+    targetUrl: ctx.targetUrl,
+    speedTests,
+  }
+
+  if (!ctx.crawlSessionId) {
+    const livePage =
+      ctx.targetUrl != null
+        ? await fetchTargetUrlSnapshot(ctx.targetUrl, ctx.project.rootUrl).catch(() => null)
+        : null
+    return JSON.stringify({
+      ...base,
+      crawlSession: null,
+      livePage,
+      note: 'No crawl session linked. Use fetch_live_page for live checks; crawl-scoped tools will return an error.',
+    })
+  }
+
+  const session = await prisma.crawlSession.findFirst({
+    where: { id: ctx.crawlSessionId, projectId: ctx.projectId },
+  })
+  if (!session) {
+    return JSON.stringify({
+      ...base,
+      crawlSession: null,
+      note: 'crawlSessionId set but not found for this project.',
+    })
+  }
+
+  const totalPagesInCrawl = await prisma.crawledPage.count({
+    where: { crawlSessionId: ctx.crawlSessionId },
+  })
+  const statusRows = await prisma.crawledPage.findMany({
+    where: { crawlSessionId: ctx.crawlSessionId },
+    select: { statusCode: true },
+  })
+  const statusHistogram = histogram(statusRows.map((r) => r.statusCode))
+  const crawlSession = serializeCrawlSession(session, totalPagesInCrawl, 0, 0)
+
+  return JSON.stringify({
+    ...base,
+    crawlSession,
+    aggregateCrawlStats: {
+      totalPagesInCrawl,
+      statusHistogram,
+    },
+    note:
+      'Use the provided function tools (search_pages, get_page, list_pages, get_crawl_stats, list_page_issues, get_speed_tests, fetch_live_page) to pull specific evidence. Do not ask the user for data.',
+  })
+}
+
 export async function buildPayloadForSkill(
   prisma: PrismaClient,
   skillName: string,
@@ -71,7 +137,14 @@ export async function buildPayloadForSkill(
   })
 
   if (embeddingAuditEnabled() && chunkCount > 0 && !ctx.targetUrl) {
-    return buildEmbeddingRetrievalPayload(prisma, skillName, ctx, session, totalPagesInCrawl)
+    return buildEmbeddingRetrievalPayload(
+      prisma,
+      skillName,
+      ctx,
+      session,
+      totalPagesInCrawl,
+      speedTests,
+    )
   }
 
   const pageWhere: import('@prisma/client').Prisma.CrawledPageWhereInput = {

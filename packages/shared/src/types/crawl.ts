@@ -75,6 +75,12 @@ export interface CrawledPageHeadingDTO {
   text: string
 }
 
+export interface CrawledPageOriginDTO {
+  url: string
+  text: string
+  rel: string
+}
+
 /** Full row + parsed links + issues (single-page crawl API). */
 export interface CrawledPageDetailDTO {
   id: string
@@ -104,6 +110,7 @@ export interface CrawledPageDetailDTO {
   hasSchema: boolean | null
   schemaTypes: string | null
   schemaJson: string | null
+  linkedFrom: CrawledPageOriginDTO[]
   issues: CrawledPageIssueDTO[]
 }
 

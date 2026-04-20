@@ -66,6 +66,32 @@ async function testOpenAiKey(apiKey: string): Promise<{ valid: boolean; message:
   }
 }
 
+type PasswordChangePrisma = {
+  $transaction: (operations: Promise<unknown>[]) => Promise<unknown>
+  user: {
+    update: (args: { where: { id: string }; data: { passwordHash: string } }) => Promise<unknown>
+  }
+  session: {
+    deleteMany: (args: { where: { userId: string } }) => Promise<unknown>
+  }
+}
+
+export async function revokeUserSessionsAfterPasswordChange(
+  prisma: PasswordChangePrisma,
+  userId: string,
+  passwordHash: string,
+): Promise<void> {
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash },
+    }),
+    prisma.session.deleteMany({
+      where: { userId },
+    }),
+  ])
+}
+
 const accountRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.addHook('preHandler', fastify.authenticate)
 
@@ -163,10 +189,8 @@ const accountRoutes: FastifyPluginAsync = async (fastify) => {
     if (!ok) return reply.status(401).send({ error: 'Current password is incorrect' })
 
     const passwordHash = await bcrypt.hash(parsed.data.newPassword, 10)
-    await fastify.prisma.user.update({
-      where: { id: request.user!.id },
-      data: { passwordHash },
-    })
+    await revokeUserSessionsAfterPasswordChange(fastify.prisma, request.user!.id, passwordHash)
+    reply.clearCookie('session_token', { path: '/' })
     return { ok: true }
   })
 

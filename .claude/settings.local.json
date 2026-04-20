@@ -1,7 +1,29 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx prisma:*)"
+      "Bash(npx prisma:*)",
+      "Bash(awk -F'\"skillName\":\"' 'NF>1 {split\\($2,a,\"\\\\\"\"\\); print NR\": \"a[1]}' /d/seoaifrog/apps/api/logs/openai-audit-2026-04-17.ndjson)",
+      "Bash(awk 'NR==3' /d/seoaifrog/apps/api/logs/openai-audit-2026-04-17.ndjson)",
+      "Bash(python -c \"import sys, json; d=json.loads\\(sys.stdin.read\\(\\)\\); p=d['userPayload']; i=p.find\\('speedTests'\\); print\\('ts:', d['ts']\\); print\\('payload length:', len\\(p\\)\\); print\\('speedTests index:', i\\); print\\('---snippet---'\\); print\\(p[max\\(0,i-50\\):i+1500] if i>=0 else 'NOT FOUND'\\)\")",
+      "Bash(node -e \"let d=''; process.stdin.on\\('data',c=>d+=c\\); process.stdin.on\\('end',\\(\\)=>{const o=JSON.parse\\(d\\); const p=o.userPayload; const i=p.indexOf\\('speedTests'\\); console.log\\('ts:', o.ts\\); console.log\\('payloadLen:', p.length\\); console.log\\('speedTestsIndex:', i\\); if\\(i>=0\\) console.log\\('SNIPPET:', p.slice\\(Math.max\\(0,i-30\\), i+1500\\)\\);}\\)\")",
+      "Bash(awk NR==__TRACKED_VAR__ /d/seoaifrog/apps/api/logs/openai-audit-2026-04-17.ndjson)",
+      "Bash(find /d/seoaifrog -type f \\\\\\( -name \"*.ts\" -o -name \"*.js\" \\\\\\) -exec grep -l \"TODO\\\\|FIXME\\\\|XXX\\\\|HACK\" {} \\\\;)",
+      "Bash(grep -E \"\\\\.\\(ts|js\\)$\")",
+      "Bash(find /d/seoaifrog/apps -name \"package.json\" -exec grep -l \"version\" {} \\\\;)",
+      "WebFetch(domain:api.anthropic.com)",
+      "Bash(npx tsc *)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(echo \"EXIT=$?\")",
+      "Bash(grep -v \"^$\")",
+      "Bash(node -e \"const fs=require\\('fs'\\);const lines=fs.readFileSync\\('apps/api/logs/openai-audit-2026-04-19.ndjson','utf8'\\).trim\\(\\).split\\('\\\\n'\\);for\\(const l of lines.slice\\(-5\\)\\){const e=JSON.parse\\(l\\);console.log\\(e.ts, e.skillName, 'mode=',e.deliveryMode,'tools=',e.toolCallCount,'payloadStart=',e.userPayload.slice\\(0,120\\)\\)}\")",
+      "Read(//c/Users/Ghulam Ahmad/Downloads/**)",
+      "Bash(node -e \"const fs=require\\('fs'\\);const e=JSON.parse\\(fs.readFileSync\\('C:/Users/Ghulam Ahmad/Downloads/hvfbjvf.json','utf8'\\)\\);console.log\\('ts=',e.ts\\);console.log\\('skill=',e.skillName\\);console.log\\('deliveryMode=',e.deliveryMode\\);console.log\\('toolCallCount=',e.toolCallCount\\);console.log\\('turnCount=',e.turnCount\\);console.log\\('payloadBytes=',e.userPayload.length\\);console.log\\('payloadHead=',e.userPayload.slice\\(0,400\\)\\);console.log\\('---'\\);console.log\\('payload has pages[]?',e.userPayload.includes\\('\\\\\"pages\\\\\"'\\)\\);console.log\\('payload has dataSource?',\\(e.userPayload.match\\(/\\\\\"dataSource\\\\\":\\\\\"[^\\\\\"]+\\\\\"/\\)||[]\\)[0]\\);\")",
+      "Bash(npm run *)",
+      "Bash(tasklist //FI \"IMAGENAME eq node.exe\")",
+      "Bash(wmic process *)",
+      "Bash(powershell -NoProfile -Command \"Get-CimInstance Win32_Process -Filter \\\\\"Name='node.exe'\\\\\" | Select-Object ProcessId,CommandLine | Format-List\")",
+      "Bash(powershell -NoProfile -Command 'Get-CimInstance Win32_Process -Filter \"Name='\\\\''node.exe'\\\\''\" | Where-Object { $_.CommandLine -match '\\\\''seoaifrog|tsx|vite|concurrently'\\\\'' } | Select-Object ProcessId,CommandLine | Format-List')",
+      "Bash(node -e ' *)"
     ]
   }
 }

@@ -16,6 +16,22 @@ export type SpeedTestReportRow = {
   speedIndexMs: number | null
 }
 
+function toDisplayStrategy(strategy: string): string {
+  return strategy.trim().toLowerCase() === 'desktop' ? 'Desktop' : 'Mobile'
+}
+
+export function summarizeSpeedTestStrategies(strategies: string[]): 'Mobile' | 'Desktop' | 'Mixed' {
+  const normalized = new Set(strategies.map((strategy) => toDisplayStrategy(strategy)))
+  if (normalized.size === 1 && normalized.has('Desktop')) return 'Desktop'
+  if (normalized.size === 1 && normalized.has('Mobile')) return 'Mobile'
+  return 'Mixed'
+}
+
+export function buildSpeedTestReportTitle(domain: string, strategies: string[], dateStr: string): string {
+  const strategyLabel = summarizeSpeedTestStrategies(strategies)
+  return `Speed Report - ${strategyLabel} - ${domain} - ${dateStr}`
+}
+
 function msToSec(ms: number | null): string {
   if (ms == null) return '—'
   return `${(ms / 1000).toFixed(2)}s`
@@ -41,17 +57,19 @@ export function buildSpeedTestReportMarkdown(
   domain: string,
   tests: SpeedTestReportRow[],
 ): string {
+  const strategyLabel = summarizeSpeedTestStrategies(tests.map((test) => test.strategy))
   const lines: string[] = []
   lines.push(`# ${escapeMdHeading(title)}`, '')
   lines.push(`- **Domain:** ${domain}`)
   lines.push(`- **Report type:** PageSpeed / Core Web Vitals`)
+  lines.push(`- **Device profile:** ${strategyLabel}`)
   lines.push(`- **Tests included:** ${tests.length}`)
   lines.push(`- **Generated at:** ${new Date().toISOString()}`, '')
   lines.push('---', '')
 
   for (const t of tests) {
     lines.push(`## ${escapeMdHeading(t.url)}`, '')
-    lines.push(`**Strategy:** ${t.strategy}  `)
+    lines.push(`**Strategy:** ${toDisplayStrategy(t.strategy)}  `)
     lines.push(`**Tested at:** ${t.fetchedAt.toISOString()}`, '')
 
     lines.push('### Scores', '')
@@ -122,7 +140,7 @@ export function buildReportMarkdown(
     lines.push('## PageSpeed Insights', '')
     lines.push('Recent saved tests (user-triggered):', '')
     for (const r of speedRows.slice(0, 5)) {
-      lines.push(`### ${escapeMdHeading(r.url)} (${r.strategy})`, '')
+      lines.push(`### ${escapeMdHeading(r.url)} (${toDisplayStrategy(r.strategy)})`, '')
       lines.push(`- Fetched at: ${r.fetchedAt.toISOString()}`)
       lines.push(`- Performance: ${r.performanceScore ?? '—'}`)
       lines.push(`- Accessibility: ${r.accessibilityScore ?? '—'}`)

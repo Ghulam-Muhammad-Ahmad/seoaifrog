@@ -16,6 +16,7 @@ import {
 import { Link, useParams } from 'react-router-dom'
 import type { CrawledPageDTO, CrawledPageDetailDTO } from '@seoaifrog/shared'
 import { ApiError, apiJson } from '@/lib/api'
+import { normalizeCrawledPageDetail } from './pageDetail'
 
 type PagesResponse = { data: CrawledPageDTO[]; total: number; page: number; pageSize: number }
 
@@ -145,7 +146,7 @@ function PageDetailModal({
   pageId: string
   onClose: () => void
 }) {
-  const { data, isLoading, error } = useQuery({
+  const { data: rawData, isLoading, error } = useQuery({
     queryKey: ['crawl-page-detail', crawlId, pageId],
     queryFn: () => apiJson<CrawledPageDetailDTO>(`/api/crawls/${crawlId}/pages/${pageId}`),
     enabled: Boolean(crawlId && pageId),
@@ -160,6 +161,7 @@ function PageDetailModal({
   }, [onClose])
 
   const errMsg = error instanceof ApiError ? error.message : error ? 'Failed to load' : null
+  const data = rawData ? normalizeCrawledPageDetail(rawData) : null
 
   return (
     <div
@@ -356,6 +358,32 @@ function PageDetailModal({
                     ))}
                   </ul>
                 ) : null}
+              </div>
+
+              <div>
+                <h3 className="font-semibold text-ink-primary">Linked from</h3>
+                <p className="mt-0.5 text-xs text-ink-muted">
+                  Stored source pages in this crawl whose extracted links point to this URL.
+                </p>
+                {data.linkedFrom.length > 0 ? (
+                  <ul className="mt-2 max-h-40 space-y-2 overflow-y-auto rounded-lg border border-line bg-surface-muted/30 p-3 text-xs">
+                    {data.linkedFrom.map((origin, i) => (
+                      <li key={`${origin.url}-${origin.text}-${origin.rel}-${i}`} className="break-all">
+                        <div className="font-mono text-ink-primary">{origin.url}</div>
+                        {origin.text ? (
+                          <div className="mt-0.5 font-sans text-ink-secondary">Anchor: "{origin.text}"</div>
+                        ) : null}
+                        {origin.rel ? (
+                          <div className="mt-0.5 font-mono text-[11px] text-ink-muted">rel="{origin.rel}"</div>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="mt-2 rounded-lg border border-line bg-surface-muted/30 px-3 py-2 text-xs text-ink-secondary">
+                    No stored source links point to this page in this crawl.
+                  </div>
+                )}
               </div>
 
               {data.issues.length > 0 ? (

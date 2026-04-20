@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
+import { FrogMark } from '@/components/FrogMark'
 import {
   AlertCircle,
   AlertTriangle,
@@ -90,11 +91,9 @@ function Navbar() {
       <div className="mx-auto flex h-16 max-w-shell items-center justify-between px-6 md:px-10">
         {/* Logo */}
         <Link to="/" className="focus-ring flex items-center gap-2.5 rounded-lg">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-primary shadow-sm">
-            <Radar className="h-4 w-4 text-white" aria-hidden />
-          </div>
+          <FrogMark size={32} radius={9} />
           <span className="font-display text-[1.05rem] font-extrabold tracking-tight text-brand-deep">
-            SEO AI Frog
+            SEO <span className="text-brand-primary">AI</span> Frog
           </span>
         </Link>
 

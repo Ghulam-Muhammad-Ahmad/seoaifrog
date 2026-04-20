@@ -125,9 +125,6 @@ const auditsRoutes: FastifyPluginAsync = async (fastify) => {
         },
       },
     })
-    // #region agent log
-    fetch('http://127.0.0.1:7792/ingest/9420941f-ba7f-48e3-b6bf-dd47d9ba812b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'b9cf3a'},body:JSON.stringify({sessionId:'b9cf3a',runId:'pending-audit-debug',hypothesisId:'H1',location:'routes/audits.ts:post-create',message:'audit row created before queue add',data:{auditId:audit.id,projectId,crawlSessionId:crawlId,skillsCount:skills.length,targetUrl:selectedTargetUrl},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
 
     try {
       await auditQueue.add(
@@ -135,13 +132,7 @@ const auditsRoutes: FastifyPluginAsync = async (fastify) => {
         { auditId: audit.id },
         { jobId: audit.id, removeOnComplete: true, removeOnFail: false },
       )
-      // #region agent log
-      fetch('http://127.0.0.1:7792/ingest/9420941f-ba7f-48e3-b6bf-dd47d9ba812b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'b9cf3a'},body:JSON.stringify({sessionId:'b9cf3a',runId:'pending-audit-debug',hypothesisId:'H1',location:'routes/audits.ts:post-enqueue',message:'audit queue add succeeded',data:{auditId:audit.id,queueName:'audit'},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
     } catch (err) {
-      // #region agent log
-      fetch('http://127.0.0.1:7792/ingest/9420941f-ba7f-48e3-b6bf-dd47d9ba812b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'b9cf3a'},body:JSON.stringify({sessionId:'b9cf3a',runId:'pending-audit-debug',hypothesisId:'H1',location:'routes/audits.ts:enqueue-error',message:'audit queue add failed',data:{auditId:audit.id,error:err instanceof Error?err.message:String(err)},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       fastify.log.error({ err }, 'auditQueue.add failed (Redis / BullMQ)')
       try {
         await fastify.prisma.audit.delete({ where: { id: audit.id } })

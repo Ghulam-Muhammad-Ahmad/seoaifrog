@@ -1,6 +1,7 @@
 import { FileSearch, FileText, FolderKanban, Gauge, SearchCode, LayoutDashboard, Settings } from 'lucide-react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { useProject } from '@/contexts/ProjectContext'
+import { FrogMark } from '@/components/FrogMark'
 
 export function Sidebar() {
   const location = useLocation()
@@ -26,9 +27,12 @@ export function Sidebar() {
       <div className="flex h-header shrink-0 items-center border-b border-line px-4">
         <NavLink
           to="/dashboard"
-          className="focus-ring rounded-md font-display text-lg font-extrabold tracking-tight text-brand-primary"
+          className="focus-ring flex items-center gap-2 rounded-lg"
         >
-          SEO AI Frog
+          <FrogMark size={26} radius={7} />
+          <span className="font-display text-[13.5px] font-bold tracking-tight text-brand-deep">
+            SEO <span className="text-brand-primary">AI</span> Frog
+          </span>
         </NavLink>
       </div>
       <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-3" aria-label="Main">

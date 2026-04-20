@@ -34,6 +34,16 @@ function userDto(u: {
 
 const SESSION_DAYS = 30
 
+export function getSessionCookieOptions(nodeEnv = process.env.NODE_ENV) {
+  return {
+    path: '/',
+    httpOnly: true,
+    sameSite: 'lax' as const,
+    secure: nodeEnv === 'production',
+    maxAge: SESSION_DAYS * 86400,
+  }
+}
+
 const authRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post('/auth/register', async (request, reply) => {
     const parsed = registerBody.safeParse(request.body)
@@ -54,12 +64,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       data: { userId: user.id, token, expiresAt },
     })
 
-    reply.setCookie('session_token', token, {
-      path: '/',
-      httpOnly: true,
-      sameSite: 'lax',
-      maxAge: SESSION_DAYS * 86400,
-    })
+    reply.setCookie('session_token', token, getSessionCookieOptions())
 
     return { user: userDto(user) }
   })
@@ -81,12 +86,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       data: { userId: user.id, token, expiresAt },
     })
 
-    reply.setCookie('session_token', token, {
-      path: '/',
-      httpOnly: true,
-      sameSite: 'lax',
-      maxAge: SESSION_DAYS * 86400,
-    })
+    reply.setCookie('session_token', token, getSessionCookieOptions())
 
     return { user: userDto(user) }
   })

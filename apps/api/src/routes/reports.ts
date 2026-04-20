@@ -4,7 +4,7 @@ import { mkdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { z } from 'zod'
 import { saveAuditReport } from '../lib/reportPersistence.js'
-import { buildSpeedTestReportMarkdown } from '../lib/reportBuilder.js'
+import { buildSpeedTestReportMarkdown, buildSpeedTestReportTitle } from '../lib/reportBuilder.js'
 import { resolveStoragePath } from '../lib/paths.js'
 
 async function assertProject(fastify: { prisma: import('@prisma/client').PrismaClient }, userId: string, projectId: string) {
@@ -151,7 +151,11 @@ const reportsRoutes: FastifyPluginAsync = async (fastify) => {
 
     const domain = project.domain ?? new URL(project.rootUrl).hostname
     const dateStr = new Date().toLocaleDateString('en-GB')
-    const title = `Speed Report — ${domain} — ${dateStr}`
+    const title = buildSpeedTestReportTitle(
+      domain,
+      tests.map((test) => test.strategy),
+      dateStr,
+    )
 
     const markdown = buildSpeedTestReportMarkdown(title, domain, tests.map((t) => ({
       id: t.id,

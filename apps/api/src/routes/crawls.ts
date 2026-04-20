@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { CrawlStatus } from '@prisma/client'
 import { defaultCrawlConfig, type CrawlConfig } from '@seoaifrog/shared'
 import { crawlQueue } from '../lib/queues.js'
+import { findLinkedFromSources } from './crawlLinkOrigins.js'
 import type {
   CrawledPageDetailDTO,
   CrawledPageHeadingDTO,
@@ -304,6 +305,12 @@ const crawlsRoutes: FastifyPluginAsync = async (fastify) => {
     }
     const h2Count = headings.filter((h) => h.level === 2).length
 
+    const sourcePages = await fastify.prisma.crawledPage.findMany({
+      where: { crawlSessionId: id, id: { not: pageId }, linksJson: { not: null } },
+      select: { url: true, linksJson: true },
+    })
+    const linkedFrom = findLinkedFromSources(p.url, sourcePages)
+
     const detail: CrawledPageDetailDTO = {
       id: p.id,
       url: p.url,
@@ -332,6 +339,7 @@ const crawlsRoutes: FastifyPluginAsync = async (fastify) => {
       hasSchema: p.hasSchema,
       schemaTypes: p.schemaTypes,
       schemaJson: p.schemaJson,
+      linkedFrom,
       issues: p.issues.map((i) => ({
         code: i.code,
         message: i.message,

@@ -40,6 +40,22 @@ const OTHER_SKILL_IDS: SkillId[] = SKILL_IDS.filter(
   (id): id is SkillId => id !== COMPREHENSIVE_AUDIT_SKILL,
 )
 
+const SKILL_DESCRIPTIONS: Record<SkillId, string> = {
+  'seo-audit': 'Master comprehensive analysis that runs as a standalone skill.',
+  'seo-technical': 'Crawlability, indexability, robots.txt, redirects, canonicals, and URL structure.',
+  'seo-content': 'Thin content, word counts, readability, H1 usage, and E-E-A-T signals.',
+  'seo-images': 'Alt text, Open Graph images, formats, sizes, and lazy loading.',
+  'seo-schema': 'JSON-LD coverage, schema.org types, and structured-data validation.',
+  'seo-sitemap': 'XML sitemap presence, structure, and URL coverage checks.',
+  'seo-hreflang': 'Language/region tags and international SEO correctness.',
+  'seo-geo': 'Generative Engine Optimization for AI Overviews, ChatGPT, and Perplexity.',
+  'seo-page': 'Deep single-page audit: titles, meta, headings, schema, and on-page signals.',
+  'seo-plan': 'Strategy, roadmap, site architecture, and content-plan recommendations.',
+  'seo-programmatic': 'Template/pSEO quality, thin-page safeguards, and index-bloat prevention.',
+  'seo-competitor-pages': 'Comparison ("X vs Y") and alternatives page planning with schema.',
+  'seo-performance': 'Core Web Vitals, PageSpeed scores, and load-performance analysis.',
+}
+
 function normalizeSelectedSkills(skills: Iterable<SkillId>): Set<SkillId> {
   const next = new Set(skills)
   if (next.has(COMPREHENSIVE_AUDIT_SKILL)) return new Set([COMPREHENSIVE_AUDIT_SKILL])
@@ -317,9 +333,19 @@ export function AuditSelect() {
         <ul className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {OTHER_SKILL_IDS.map((id) => (
             <li key={id}>
-              <label className="focus-ring flex cursor-pointer items-center gap-2 rounded-lg border border-line bg-surface-card px-3 py-2 font-mono text-xs hover:bg-surface-muted/60">
-                <input type="checkbox" checked={selected.has(id)} onChange={() => toggle(id)} />
-                {id}
+              <label className="focus-ring flex cursor-pointer items-start gap-2 rounded-lg border border-line bg-surface-card px-3 py-2 hover:bg-surface-muted/60">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={selected.has(id)}
+                  onChange={() => toggle(id)}
+                />
+                <span className="min-w-0">
+                  <span className="block font-mono text-xs text-ink-primary">{id}</span>
+                  <span className="mt-0.5 block font-sans text-xs text-ink-secondary">
+                    {SKILL_DESCRIPTIONS[id]}
+                  </span>
+                </span>
               </label>
             </li>
           ))}

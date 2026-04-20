@@ -2,10 +2,19 @@ import type { PrismaClient } from '@prisma/client'
 import { AuditStatus } from '@prisma/client'
 import { ensureCrawlEmbeddings } from './embeddings/crawlEmbeddingService.js'
 import { OpenAIClient } from './OpenAIClient.js'
-import { buildPayloadForSkill, type SkillPayloadContext } from './PayloadBuilder.js'
+import {
+  buildPayloadForSkill,
+  buildToolUsePayload,
+  type SkillPayloadContext,
+} from './PayloadBuilder.js'
 import { decodeAuditSelection } from './auditSelection.js'
 import { saveAuditReport } from '../lib/reportPersistence.js'
 import { decryptUserSecret } from '../lib/accountCrypto.js'
+import type { AuditToolContext } from './tools/auditTools.js'
+
+function toolUseEnabled(): boolean {
+  return (process.env.OPENAI_AUDIT_TOOLS ?? 'true').toLowerCase() !== 'false'
+}
 
 const SKILL_GROUPS: string[][] = [
   ['seo-technical', 'seo-content', 'seo-images', 'seo-schema', 'seo-sitemap', 'seo-hreflang'],
@@ -96,53 +105,61 @@ export async function runAuditOrchestrator(prisma: PrismaClient, auditId: string
     return a.status === AuditStatus.FAILED && a.errorMessage === 'Cancelled by user'
   }
 
-  for (const group of SKILL_GROUPS) {
+  // Run skills strictly sequentially. Tool-use sessions can consume thousands
+  // of tokens per skill across multiple turns; parallelism causes TPM thrash
+  // and back-to-back 429s. One skill at a time keeps the ndjson log readable
+  // and each tool-loop uninterrupted.
+  const flatSkills = SKILL_GROUPS.flat().filter((s) => skills.includes(s))
+  for (const skillName of flatSkills) {
     if (await isCancelled()) return
-    const toRun = group.filter((s) => skills.includes(s))
-    await Promise.all(
-      toRun.map(async (skillName) => {
-        if (await isCancelled()) return
-        const row = await prisma.skillResult.findFirst({
-          where: { auditId, skillName },
-        })
-        if (!row) return
+    const row = await prisma.skillResult.findFirst({ where: { auditId, skillName } })
+    if (!row) continue
 
-        await prisma.skillResult.update({
-          where: { id: row.id },
-          data: { status: 'running' },
-        })
+    await prisma.skillResult.update({ where: { id: row.id }, data: { status: 'running' } })
 
-        try {
-          if (await isCancelled()) return
-          const payload = await buildPayloadForSkill(prisma, skillName, ctx)
-          const websiteUrl = selection.targetUrl ?? audit.project.rootUrl
-          const out = await client.completeWithSkill(skillName, payload, websiteUrl)
-          if (out.score != null) scores.set(skillName, out.score)
+    try {
+      if (await isCancelled()) return
+      const usingTools = toolUseEnabled()
+      const payload = usingTools
+        ? await buildToolUsePayload(prisma, skillName, ctx)
+        : await buildPayloadForSkill(prisma, skillName, ctx)
+      const websiteUrl = selection.targetUrl ?? audit.project.rootUrl
+      const toolCtx: AuditToolContext = {
+        prisma,
+        projectId: ctx.projectId,
+        project: ctx.project,
+        crawlSessionId: ctx.crawlSessionId,
+        targetUrl: ctx.targetUrl,
+        openAiApiKey: userOpenAiKey,
+      }
+      console.info(
+        `[audit-orchestrator] auditId=${auditId} skill=${skillName} start mode=${usingTools ? 'tool_use' : 'legacy'} payloadBytes=${payload.length}`,
+      )
+      const out = await client.completeWithSkill(skillName, payload, websiteUrl, toolCtx)
+      if (out.score != null) scores.set(skillName, out.score)
+      console.info(
+        `[audit-orchestrator] auditId=${auditId} skill=${skillName} done score=${out.score ?? 'n/a'} tokens=${out.tokensUsed} toolCalls=${out.toolCallCount} turns=${out.turnCount} durationMs=${out.durationMs}`,
+      )
 
-          await prisma.skillResult.update({
-            where: { id: row.id },
-            data: {
-              status: 'completed',
-              score: out.score,
-              rawResponse: out.rawResponse,
-              tokensUsed: out.tokensUsed,
-              durationMs: out.durationMs,
-              completedAt: new Date(),
-            },
-          })
-        } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e)
-          await prisma.skillResult.update({
-            where: { id: row.id },
-            data: {
-              status: 'failed',
-              rawResponse: msg,
-              completedAt: new Date(),
-            },
-          })
-        }
-      }),
-    )
+      await prisma.skillResult.update({
+        where: { id: row.id },
+        data: {
+          status: 'completed',
+          score: out.score,
+          rawResponse: out.rawResponse,
+          tokensUsed: out.tokensUsed,
+          durationMs: out.durationMs,
+          completedAt: new Date(),
+        },
+      })
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      console.warn(`[audit-orchestrator] auditId=${auditId} skill=${skillName} FAILED: ${msg}`)
+      await prisma.skillResult.update({
+        where: { id: row.id },
+        data: { status: 'failed', rawResponse: msg, completedAt: new Date() },
+      })
+    }
   }
 
   if (await isCancelled()) return

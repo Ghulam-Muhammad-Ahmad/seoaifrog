@@ -173,6 +173,7 @@ export async function buildEmbeddingRetrievalPayload(
   ctx: SkillPayloadContext,
   session: CrawlSession,
   totalPagesInCrawl: number,
+  speedTests: unknown[] = [],
 ): Promise<string> {
   const key = (ctx.openAiApiKey ?? '').trim()
   if (!key) throw new Error('OpenAI API key is required for embedding retrieval')
@@ -256,6 +257,7 @@ export async function buildEmbeddingRetrievalPayload(
       similarity: Math.round(similarity * 1000) / 1000,
     })),
     pageMetadataForRetrievedPages: pageMetas,
+    speedTests,
   }
 
   return JSON.stringify(payload, null, 2)

@@ -46,6 +46,20 @@ export type OpenAiAuditLogEntry = {
   /** inline string vs uploaded JSON file (user_data) referenced in chat */
   payloadDelivery?: 'inline' | 'openai_file'
   openaiInputFileId?: string | null
+  /** Tool-use metadata (function-calling loop) */
+  toolCallCount?: number
+  turnCount?: number
+  toolCalls?: Array<{
+    name: string
+    argsJson: string
+    resultPreview: string
+    durationMs: number
+    ok: boolean
+    error?: string
+  }>
+  deliveryMode?: 'responses_tools' | 'responses_web_only' | 'chat_fallback'
+  /** Error from the tool-use loop, if any (captured even when we gracefully recover). */
+  loopError?: string
 }
 
 /**
